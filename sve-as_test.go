@@ -16,43 +16,44 @@
 package sve_as
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
 
 func TestSveAssembler(t *testing.T) {
 	testCases := []struct {
-		ins    string
-		opcode uint32
+		ins string
 	}{
 		// scalar instructions
-		{"    WORD $0x8b0f01ce // add x14, x14, x15", 0x8b0f01ce},
-		{"    WORD $0x8b0f0129 // add x9, x9, x15  ", 0x8b0f0129},
-		{"    WORD $0x91010108 // add x8, x8, #64  ", 0x91010108},
-		{"    WORD $0xf1000400 // subs x0, x0, #1  ", 0xf1000400},
-		{"    WORD $0xd346fc00 // lsr x0, x0, #6   ", 0xd346fc00},
-		{"    WORD $0xea00001f // tst x0, x0       ", 0xea00001f},
+		{"    WORD $0x8b0f01ce // add x14, x14, x15"},
+		{"    WORD $0x8b0f0129 // add x9, x9, x15"},
+		{"    WORD $0x91010108 // add x8, x8, #64"},
+		{"    WORD $0xf1000400 // subs x0, x0, #1"},
+		{"    WORD $0xd346fc00 // lsr x0, x0, #6"},
+		{"    WORD $0xea00001f // tst x0, x0"},
 		//
 		// vector instructions
-		{"    WORD $0x05e039e2 // mov z2.d, x15            ", 0x05e039e2},
-		{"    WORD $0x85804425 // ldr z5, [x1, #1, MUL VL] ", 0x85804425},
-		{"    WORD $0x85804026 // ldr z6, [x1]             ", 0x85804026},
-		{"    WORD $0xe58041c0 // str z0, [x14]            ", 0xe58041c0},
-		{"    WORD $0xe58045c1 // str z1, [x14, #1, MUL VL]", 0xe58045c1},
-		{"    WORD $0x042230c6 // and z6.d, z6.d, z2.d     ", 0x042230c6},
-		{"    WORD $0x042230a5 // and z5.d, z5.d, z2.d     ", 0x042230a5},
-		{"    WORD $0x05253065 // tbl z5.b, z3.b, z5.b     ", 0x05253065},
-		{"    WORD $0x05283086 // tbl z6.b, z4.b, z8.b     ", 0x05283086},
-		{"    WORD $0x04a33080 // eor z0.d, z4.d, z3.d     ", 0x04a33080},
-		{"    WORD $0x05212042 // dup z2.b, z2.b[0]        ", 0x05212042},
-		{"    WORD $0x04fc94c7 // lsr z7.d, z6.d, #4       ", 0x04fc94c7},
-		{"    WORD $0x04fc94a8 // lsr z8.d, z5.d, #4       ", 0x04fc94a8},
+		{"    WORD $0x05e039e2 // mov z2.d, x15"},
+		{"    WORD $0x85804425 // ldr z5, [x1, #1, MUL VL]"},
+		{"    WORD $0x85804026 // ldr z6, [x1]"},
+		{"    WORD $0xe58041c0 // str z0, [x14]"},
+		{"    WORD $0xe58045c1 // str z1, [x14, #1, MUL VL]"},
+		{"    WORD $0x042230c6 // and z6.d, z6.d, z2.d"},
+		{"    WORD $0x042230a5 // and z5.d, z5.d, z2.d"},
+		{"    WORD $0x05253065 // tbl z5.b, z3.b, z5.b"},
+		{"    WORD $0x05283086 // tbl z6.b, z4.b, z8.b"},
+		{"    WORD $0x04a33080 // eor z0.d, z4.d, z3.d"},
+		{"    WORD $0x05212042 // dup z2.b, z2.b[0]"},
+		{"    WORD $0x04fc94c7 // lsr z7.d, z6.d, #4"},
+		{"    WORD $0x04fc94a8 // lsr z8.d, z5.d, #4"},
 	}
 
 	for i, tc := range testCases {
-		opcode := Assemble(strings.TrimSpace(strings.Split(tc.ins, "//")[1]))
-		if opcode != tc.opcode {
-			t.Errorf("TestSveAssembler(%d): `%s`: got: %08x want: %08x", i, tc.ins, opcode, tc.opcode)
+		ins := strings.TrimSpace(strings.Split(tc.ins, "//")[1])
+		opcode := fmt.Sprintf("%08x", Assemble(ins))
+		if !strings.Contains(tc.ins, opcode) {
+			t.Errorf("TestSveAssembler(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
 		}
 	}
 }
