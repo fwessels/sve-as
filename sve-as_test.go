@@ -51,9 +51,14 @@ func TestSveAssembler(t *testing.T) {
 
 	for i, tc := range testCases {
 		ins := strings.TrimSpace(strings.Split(tc.ins, "//")[1])
-		opcode := fmt.Sprintf("%08x", Assemble(ins))
-		if !strings.Contains(tc.ins, opcode) {
-			t.Errorf("TestSveAssembler(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+		oc, err := Assemble(ins)
+		if err != nil {
+			t.Errorf("TestSveAssembler(%d): `%s`: %v", i, ins, err)
+		} else {
+			opcode := fmt.Sprintf("%08x", oc)
+			if !strings.Contains(tc.ins, opcode) {
+				t.Errorf("TestSveAssembler(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+			}
 		}
 	}
 }

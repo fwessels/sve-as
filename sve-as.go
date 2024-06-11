@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-func Assemble(ins string) uint32 {
+func Assemble(ins string) (opcode uint32, err error) {
 	mnem := strings.Fields(ins)[0]
 	args := strings.Fields(ins)[1:]
 	for i := range args {
@@ -34,17 +34,17 @@ func Assemble(ins string) uint32 {
 			templ := "sf	0	0	0	1	0	1	1	shift	0	Rm	imm6	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "shift", "0\t0")
-			return assem_r_rr(templ, rd, rn, rm, "imm6", 0)
+			return assem_r_rr(templ, rd, rn, rm, "imm6", 0), nil
 		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok {
 			templ := "sf	0	0	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
-			return assem_r_ri(templ, rd, rn, "imm12", imm, shift)
+			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), nil
 		}
 	case "subs":
 		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
 			templ := "sf	1	1	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
-			return assem_r_ri(templ, rd, rn, "imm12", imm, shift)
+			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), nil
 		}
 	case "tst":
 		if ok, rn, rm := is_rr(args); ok {
@@ -53,58 +53,58 @@ func Assemble(ins string) uint32 {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "shift", "0\t0")
 			rd := getR("xzr")
-			return assem_r_rr(templ, rd, rn, rm, "imm6", 0)
+			return assem_r_rr(templ, rd, rn, rm, "imm6", 0), nil
 		}
 	case "and":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
-			return assem_z_zz("0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm)
+			return assem_z_zz("0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), nil
 		}
 	case "eor":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
-			return assem_z_zz("0	0	0	0	0	1	0	0	1	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm)
+			return assem_z_zz("0	0	0	0	0	1	0	0	1	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), nil
 		}
 	case "tbl":
 		if ok, zd, zn, zm, T := is_z_zz(args); ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	0	0	1	1	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			return assem_z_zz(templ, zd, zn, zm)
+			return assem_z_zz(templ, zd, zn, zm), nil
 		}
 	case "dup":
 		if ok, zd, zn, imm, T := is_z_zindexed(args); ok {
 			templ := "0	0	0	0	0	1	0	1	imm2	1	tsz	0	0	1	0	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "tsz", getTypeSpecifier(T))
-			return assem_z_zi(templ, zd, zn, "imm2", imm)
+			return assem_z_zi(templ, zd, zn, "imm2", imm), nil
 		}
 	case "mov":
 		if ok, zd, rn, T := is_z_r(args); ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			return assem_z_r(templ, zd, rn)
+			return assem_z_r(templ, zd, rn), nil
 		} else if ok, rd, imm := is_r_i(args); ok {
 			templ := "sf	1	0	1	0	0	1	0	1	hw	imm16	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "hw", "0\t0")
-			return assem_r_i(templ, rd, "imm16", imm)
+			return assem_r_i(templ, rd, "imm16", imm), nil
 		}
 	case "ldr":
 		if ok, zt, xn, imm := is_z_bi(args); ok {
 			templ := "1	0	0	0	0	1	0	1	1	0	imm9h	0	1	0	imm9l	Rn	Zt"
-			return assem_z_bi(templ, zt, xn, imm)
+			return assem_z_bi(templ, zt, xn, imm), nil
 		}
 	case "str":
 		if ok, zt, xn, imm := is_z_bi(args); ok {
 			templ := "1	1	1	0	0	1	0	1	1	0	imm9h	0	1	0	imm9l	Rn	Zt"
-			return assem_z_bi(templ, zt, xn, imm)
+			return assem_z_bi(templ, zt, xn, imm), nil
 		}
 	case "ld1d":
 		if ok, zt, pg, rn, rm := is_z_p_rr(args); ok {
 			templ := "1	0	1	0	0	1	0	1	1	1	1	Rm	0	1	0	Pg	Rn	Zt"
-			return assem_z_p_rr(templ, zt, pg, rn, rm)
+			return assem_z_p_rr(templ, zt, pg, rn, rm), nil
 		}
 	case "st1d":
 		if ok, zt, pg, rn, rm := is_z_p_rr(args); ok {
 			templ := "1	1	1	0	0	1	0	1	1	1	1	Rm	0	1	0	Pg	Rn	Zt"
-			return assem_z_p_rr(templ, zt, pg, rn, rm)
+			return assem_z_p_rr(templ, zt, pg, rn, rm), nil
 		}
 	case "lsr":
 		if ok, zd, zn, imm, T := is_z_zimm(args); ok {
@@ -115,23 +115,23 @@ func Assemble(ins string) uint32 {
 			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	1	0	0	1	0	1	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
-			return assem_z_zi(templ, zd, zn, "imm3", imm)
+			return assem_z_zi(templ, zd, zn, "imm3", imm), nil
 		} else if ok, rd, rn, imm, _ := is_r_ri(args); ok {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	x	1	1	1	1	1	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "N", "1")
 			templ = strings.ReplaceAll(templ, "x", "1") // x bit is set for compat with 'as'
-			return assem_r_ri(templ, rd, rn, "immr", imm, 0)
+			return assem_r_ri(templ, rd, rn, "immr", imm, 0), nil
 		}
 	case "ptrue":
 		if ok, pd, T := is_p(args); ok {
 			templ := "0	0	1	0	0	1	0	1	size	0	1	1	0	0	0	1	1	1	0	0	0	pattern	0	Pd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			templ = strings.ReplaceAll(templ, "pattern", "1\t1\t1\t1\t1")
-			return assem_p(templ, pd)
+			return assem_p(templ, pd), nil
 		}
 	}
-	return 0
+	return 0, fmt.Errorf("unhandled instruction: %s", ins)
 }
 
 func getR(r string) int {
