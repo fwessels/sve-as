@@ -40,11 +40,22 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), nil
 		}
+	case "udiv":
+		if ok, rd, rn, rm := is_r_rr(args); ok {
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	0	0	1	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_rr(templ, rd, rn, rm, "", 0), nil
+		}
 	case "subs":
 		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
 			templ := "sf	1	1	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), nil
+		}
+	case "addvl":
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
+			templ := "0	0	0	0	0	1	0	0	0	0	1	Rn	0	1	0	1	0	imm6	Rd"
+			return assem_r_ri(templ, rd, rn, "imm6", imm, shift), nil
 		}
 	case "tst":
 		if ok, rn, rm := is_rr(args); ok {
@@ -81,6 +92,7 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_r(templ, zd, rn), nil
 		} else if ok, rd, imm := is_r_i(args); ok {
+			// Using MOV (wide immediate) here (which is an alias for MOVZ)
 			templ := "sf	1	0	1	0	0	1	0	1	hw	imm16	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "hw", "0\t0")
@@ -129,6 +141,13 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			templ = strings.ReplaceAll(templ, "pattern", "1\t1\t1\t1\t1")
 			return assem_p(templ, pd), nil
+		}
+	case "eor3":
+		if ok, zd, zn, zm, za, _ := is_z_zzz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	1	0	Zk	Zdn"
+			if zd == zn {
+				return assem_z2_zz(templ, zd, zm, za), nil
+			}
 		}
 	}
 	return 0, fmt.Errorf("unhandled instruction: %s", ins)
@@ -271,6 +290,20 @@ func is_z_zz(args []string) (ok bool, zd, zn, zm int, T string) {
 	return
 }
 
+func is_z_zzz(args []string) (ok bool, zd, zn, zm, za int, T string) {
+	if len(args) == 4 {
+		var t1, t2, t3, t4 string
+		zd, t1, _ = getZ(args[0])
+		zn, t2, _ = getZ(args[1])
+		zm, t3, _ = getZ(args[2])
+		za, t4, _ = getZ(args[3])
+		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 && t3 == t4 {
+			return true, zd, zn, zm, za, t1
+		}
+	}
+	return
+}
+
 func is_z_zimm(args []string) (ok bool, zd, zn, imm int, T string) {
 	if len(args) == 3 {
 		var t1, t2 string
@@ -368,6 +401,8 @@ func assem_r_rr(template string, rd, rn, rm int, immPttrn string, imm int) uint3
 	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
 	opcode = strings.ReplaceAll(opcode, "Rm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rm), 2)))
 	switch immPttrn {
+	case "":
+		// ignore
 	case "imm6":
 		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
 	default:
@@ -386,6 +421,8 @@ func assem_r_ri(template string, rd, rn int, immPttrn string, imm, shift int) ui
 	opcode = strings.ReplaceAll(opcode, "Rd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rd), 2)))
 	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
 	switch immPttrn {
+	case "imm6":
+		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
 	case "imm12":
 		opcode = strings.ReplaceAll(opcode, "imm12", fmt.Sprintf("%0*s", 12, strconv.FormatInt(int64(imm), 2)))
 	case "immr":
@@ -407,6 +444,19 @@ func assem_z_zz(template string, zd, zn, zm int) uint32 {
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z2_zz(template string, zdn, zm, zk int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
+	opcode = strings.ReplaceAll(opcode, "Zk", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zk), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)
