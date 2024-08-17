@@ -17,6 +17,7 @@ package sve_as
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -31,8 +32,10 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x91010108 // add x8, x8, #64"},
 		{"    WORD $0xf1000400 // subs x0, x0, #1"},
 		{"    WORD $0xd346fc00 // lsr x0, x0, #6"},
+		{"    WORD $0xd37ae400 // lsl x0, x0, #6"},
 		{"    WORD $0xea00001f // tst x0, x0"},
 		{"    WORD $0x04225022 // addvl x2, x2, #1"},
+		{"    WORD $0x04bf5050 // rdvl x16, #2"},
 		{"    WORD $0x9ac10800 // udiv x0, x0, x1"},
 		{"    WORD $0xd2800001 // mov   x1, #0"},
 		//
@@ -55,6 +58,16 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04fc94a8 // lsr z8.d, z5.d, #4"},
 		{"    WORD $0x04233880 // eor3 z0.d, z0.d, z3.d, z4.d"},
 		{"    WORD $0x05e18441 // compact z1.d, p1, z2.d"},
+		{"    WORD $0x05e36041 // zip1 z1.d, z2.d, z3.d"},
+		{"    WORD $0x05a36441 // zip2 z1.s, z2.s, z3.s"},
+		{"    WORD $0x05a668a4 // uzp1 z4.s, z5.s, z6.s"},
+		{"    WORD $0x05a96d07 // uzp2 z7.s, z8.s, z9.s"},
+		{"    WORD $0x05a37041 // trn1 z1.s, z2.s, z3.s"},
+		{"    WORD $0x05a674a4 // trn2 z4.s, z5.s, z6.s"},
+		{"    WORD $0x05f83841 // rev z1.d, z2.d"},
+		{"    WORD $0x05e48861 // revb z1.d, p2/M, z3.d"},
+		{"    WORD $0x05e594c4 // revh z4.d, p5/M, z6.d"},
+		{"    WORD $0x05e694c4 // revw z4.d, p5/M, z6.d"},
 	}
 
 	for i, tc := range testCases {
@@ -66,6 +79,11 @@ func TestSveAssembler(t *testing.T) {
 			opcode := fmt.Sprintf("%08x", oc)
 			if !strings.Contains(tc.ins, opcode) {
 				t.Errorf("TestSveAssembler(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				oc2, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 32)
+				if err == nil {
+					fmt.Printf("%32s\n", strconv.FormatUint(uint64(oc), 2))
+					fmt.Printf("%32s\n", strconv.FormatUint(uint64(oc2), 2))
+				}
 			}
 		}
 	}
