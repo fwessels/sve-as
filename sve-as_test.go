@@ -68,6 +68,12 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x05e48861 // revb z1.d, p2/M, z3.d"},
 		{"    WORD $0x05e594c4 // revh z4.d, p5/M, z6.d"},
 		{"    WORD $0x05e694c4 // revw z4.d, p5/M, z6.d"},
+		{"    WORD $0x449a02dc // sdot z28.s, z22.b, z26.b"},
+		{"    WORD $0x6589a231 // fcvt z17.s, p0/m, z17.h"},
+		{"    WORD $0x65910a52 // fmul z18.s, z18.s, z17.s"},
+		{"    WORD $0x047c9231 // asr z17.s, z17.s, #0x4"},
+		{"    WORD $0x6594a231 // scvtf z17.s, p0/m, z17.s"},
+		{"    WORD $0x65b2023f // fmla z31.s, p0/M, z17.s, z18.s"},
 	}
 
 	for i, tc := range testCases {
