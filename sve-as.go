@@ -65,6 +65,12 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ := "0	0	0	0	0	1	0	0	0	0	1	Rn	0	1	0	1	0	imm6	Rd"
 			return assem_r_ri(templ, rd, rn, "imm6", imm, shift), nil
 		}
+	case "mul":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	0	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
 	case "tst":
 		if ok, rn, rm := is_rr(args); ok {
 			// equivalent to "ands xzr, <xn>, <xm>{, <shift> #<amount>}"
@@ -77,10 +83,21 @@ func Assemble(ins string) (opcode uint32, err error) {
 	case "and":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
 			return assem_z_zz("0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), nil
+		} else if ok, zdn, zn, imm, _ := is_z_zimm(args); ok && zdn == zn {
+			templ := "0	0	0	0	0	1	0	1	1	0	0	0	0	0	imm13	Zdn"
+			return assem_z2_i(templ, zdn, "imm13", imm), nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	1	0	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
 		}
 	case "eor":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
 			return assem_z_zz("0	0	0	0	0	1	0	0	1	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	1	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
 		}
 	case "tbl":
 		if ok, zd, zn, zm, T := is_z_zz(args); ok {
@@ -93,6 +110,15 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	imm2	1	tsz	0	0	1	0	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "tsz", getTypeSpecifier(T))
 			return assem_z_zi(templ, zd, zn, "imm2", imm), nil
+		} else if ok, zd, imm, T := is_z_i(args); ok {
+			templ := "0	0	1	0	0	1	0	1	size	1	1	1	0	0	0	1	1	sh	imm8	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			sh := "1"
+			if imm >= -128 && imm <= 127 {
+				sh = "0"
+			}
+			templ = strings.ReplaceAll(templ, "sh", sh)
+			return assem_z_i(templ, zd, "imm8", imm), nil
 		}
 	case "mov":
 		if ok, zd, rn, T := is_z_r(args); ok {
@@ -149,6 +175,10 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ = strings.ReplaceAll(templ, "N", "1")
 			templ = strings.ReplaceAll(templ, "x", "1") // x bit is set for compat with 'as'
 			return assem_r_ri(templ, rd, rn, "immr", imm, 0), nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
 		}
 	case "lsl":
 		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
@@ -163,6 +193,10 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ = strings.ReplaceAll(templ, "N", "1")
 			templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
 			return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	1	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
 		}
 	case "rdvl":
 		if ok, rd, imm := is_r_i(args); ok {
@@ -285,6 +319,10 @@ func Assemble(ins string) (opcode uint32, err error) {
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
 			return assem_z_zi(templ, zd, zn, "imm3", imm), nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	0	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
 		}
 	case "scvtf":
 		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
@@ -300,6 +338,103 @@ func Assemble(ins string) (opcode uint32, err error) {
 				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 				return assem_z_p_zz(templ, zda, pg, zn, zm), nil
 			}
+		}
+	case "sel":
+		if ok, zd, pv, zn, zm, T := is_z_p_zz_4(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	Zm	1	1	Pv	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_zz_4(templ, zd, pv, zn, zm), nil
+		}
+	case "splice":
+		if ok, zdn, pv, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	0	1	1	0	0	1	0	0	Pv	Zm	Zdn" // Destructive variant
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Pv", "Pg") // both are 3 bits
+			return assem_z2_p_z(templ, zdn, pv, zm), nil
+		}
+	case "asrr":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	0	0	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "bic":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	1	1	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "clasta":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	0	1	0	0	0	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "clastb":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	0	1	0	0	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "lslr":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	1	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "lsrr":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	0	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "orr":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	0	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "sabd":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	0	1	1	0	0	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "sdivr":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	1	0	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "smin":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	0	1	0	1	0	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "smulh":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	1	0	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "sub":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	0	0	0	0	1	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "subr":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	0	0	0	1	1	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
+		}
+	case "uabd":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	0	1	1	0	1	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), nil
 		}
 	}
 
@@ -448,6 +583,19 @@ func is_z_z(args []string) (ok bool, zd, zn int, T string) {
 	return
 }
 
+// func is_z_zi(args []string) (ok bool, zd, zn, zm int, T string) {
+// 	if len(args) == 3 {
+// 		var t1, t2, t3 string
+// 		zd, t1, _ = getZ(args[0])
+// 		zn, t2, _ = getZ(args[1])
+// 		zm, t3, _ = getZ(args[2])
+// 		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 {
+// 			return true, zd, zn, zm, t1
+// 		}
+// 	}
+// 	return
+// }
+
 func is_z_zz(args []string) (ok bool, zd, zn, zm int, T string) {
 	if len(args) == 3 {
 		var t1, t2, t3 string
@@ -532,6 +680,20 @@ func is_z_p_zz2(args []string) (ok bool, zda, pg, zn, zm int, T string) {
 	return
 }
 
+func is_z_p_zz_4(args []string) (ok bool, zd, pg, zn, zm int, T string) {
+	if len(args) == 4 {
+		var t1, t2, t3 string
+		zd, t1, _ = getZ(args[0])
+		pg = getP(strings.Split(args[1], "/")[0]) // drop any trailer
+		zn, t2, _ = getZ(args[2])
+		zm, t3, _ = getZ(args[3])
+		if zd != -1 && zn != -1 && zm != -1 && pg != -1 && t1 == t2 && t2 == t3 {
+			return true, zd, pg, zn, zm, t1
+		}
+	}
+	return
+}
+
 func is_z_zzz(args []string) (ok bool, zd, zn, zm, za int, T string) {
 	if len(args) == 4 {
 		var t1, t2, t3, t4 string
@@ -541,6 +703,19 @@ func is_z_zzz(args []string) (ok bool, zd, zn, zm, za int, T string) {
 		za, t4, _ = getZ(args[3])
 		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 && t3 == t4 {
 			return true, zd, zn, zm, za, t1
+		}
+	}
+	return
+}
+
+func is_z_i(args []string) (ok bool, zd, imm int, T string) {
+	if len(args) == 2 {
+		var t1 string
+		zd, t1, _ = getZ(args[0])
+		if zd != -1 {
+			if ok, imm = getImm(args[1]); ok {
+				return true, zd, imm, t1
+			}
 		}
 	}
 	return
@@ -754,6 +929,40 @@ func assem_z_zz2(template string, zda, zn, zm int) uint32 {
 	}
 }
 
+func assem_z_i(template string, zd int, immPttrn string, imm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
+	switch immPttrn {
+	case "imm8":
+		opcode = strings.ReplaceAll(opcode, "imm8", fmt.Sprintf("%0*s", 8, strconv.FormatUint(uint64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z2_i(template string, zdn int, immPttrn string, imm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+	switch immPttrn {
+	case "imm13":
+		opcode = strings.ReplaceAll(opcode, "imm13", fmt.Sprintf("%0*s", 13, strconv.FormatUint(uint64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
 func assem_z_zi(template string, zd, zn int, immPttrn string, imm int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
@@ -874,6 +1083,20 @@ func assem_z_p_zz(template string, zda, pg, zn, zm int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zda", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zda), 2)))
 	opcode = strings.ReplaceAll(opcode, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(pg), 2)))
+	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z_p_zz_4(template string, zd, pv, zn, zm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
+	opcode = strings.ReplaceAll(opcode, "Pv", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pv), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
