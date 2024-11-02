@@ -583,19 +583,6 @@ func is_z_z(args []string) (ok bool, zd, zn int, T string) {
 	return
 }
 
-// func is_z_zi(args []string) (ok bool, zd, zn, zm int, T string) {
-// 	if len(args) == 3 {
-// 		var t1, t2, t3 string
-// 		zd, t1, _ = getZ(args[0])
-// 		zn, t2, _ = getZ(args[1])
-// 		zm, t3, _ = getZ(args[2])
-// 		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 {
-// 			return true, zd, zn, zm, t1
-// 		}
-// 	}
-// 	return
-// }
-
 func is_z_zz(args []string) (ok bool, zd, zn, zm int, T string) {
 	if len(args) == 3 {
 		var t1, t2, t3 string
