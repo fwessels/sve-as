@@ -110,17 +110,94 @@ func TestSveAssembler(t *testing.T) {
 
 	for i, tc := range testCases {
 		ins := strings.TrimSpace(strings.Split(tc.ins, "//")[1])
-		oc, err := Assemble(ins)
-		if err != nil {
+		oc, oc2, err := Assemble(ins)
+		if err != nil || oc2 != 0 {
 			t.Errorf("TestSveAssembler(%d): `%s`: %v", i, ins, err)
 		} else {
 			opcode := fmt.Sprintf("%08x", oc)
 			if !strings.Contains(tc.ins, opcode) {
 				t.Errorf("TestSveAssembler(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
-				oc2, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 32)
+				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 32)
 				if err == nil {
-					fmt.Printf("%32s\n", strconv.FormatUint(uint64(oc), 2))
-					fmt.Printf("%32s\n", strconv.FormatUint(uint64(oc2), 2))
+					fmt.Printf("%032s\n", strconv.FormatUint(uint64(oc), 2))
+					fmt.Printf("%032s\n", strconv.FormatUint(uint64(ocWant), 2))
+				}
+			}
+		}
+	}
+}
+
+func TestDWords(t *testing.T) {
+	testCases := []struct {
+		ins string
+	}{
+		{"    WORD $0x04913bfc // movprfx z28.s, p6/m, z31.s"},
+		{"    WORD $0x04502c46 // movprfx z6.h, p3/z, z2.h"},
+		{"    WORD $0x049034c7 // movprfx z7.s, p5/z, z6.s"},
+		{"    WORD $0x0420bc5a // movprfx z26, z2"},
+		{"    WORD $0x04913447 // movprfx z7.s, p5/m, z2.s"},
+		{"    WORD $0x0491384b // movprfx z11.s, p6/m, z2.s"},
+		{"    WORD $0x0420bf9e // movprfx z30, z28"},
+		{"    WORD $0x0420bcff // movprfx z31, z7"},
+		{"    WORD $0x049124ff // movprfx z31.s, p1/m, z7.s"},
+		{"    WORD $0x04903bfc // movprfx z28.s, p6/z, z31.s"},
+		//
+		{"    WORD $0x04800441 // add z1.s, p1/M, z1.s, z2.s"},
+		{"    WORD $0x04912441 // movprfx z1.s, p1/M, z2.s"},
+		{"    WORD $0x04800461 // add z1.s, p1/M, z1.s, z3.s"},
+		//
+		// Merges ...
+		{"    DWORD $0x0480046104912441 // add z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0490046104912441 // mul z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x049a046104912441 // and z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0499046104912441 // eor z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0491846104912441 // lsr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0493846104912441 // lsl z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0490846104912441 // asr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0494846104912441 // asrr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x05ac846104912441 // splice z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x049b046104912441 // bic z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x05a8846104912441 // clasta z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x05a9846104912441 // clastb z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0497846104912441 // lslr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0495846104912441 // lsrr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0498046104912441 // orr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x048c046104912441 // sabd z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0496046104912441 // sdivr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x048a046104912441 // smin z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0492046104912441 // smulh z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0481046104912441 // sub z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x0483046104912441 // subr z1.s, p1/M, z2.s, z3.s"},
+		{"    DWORD $0x048d046104912441 // uabd z1.s, p1/M, z2.s, z3.s"},
+		//
+		// Zeroing ...
+		{"    DWORD $0x0480046104902441 // add z1.s, p1/Z, z2.s, z3.s"},
+	}
+
+	for i, tc := range testCases {
+		ins := strings.TrimSpace(strings.Split(tc.ins, "//")[1])
+		oc, oc2, err := Assemble(ins)
+		if err != nil {
+			t.Errorf("TestSveAssembler(%d): `%s`: %v", i, ins, err)
+		} else if oc2 != 0 {
+			oc64 := uint64(oc2)<<32 | uint64(oc)
+			opcode := fmt.Sprintf("%016x", oc64)
+			if !strings.Contains(tc.ins, opcode) {
+				t.Errorf("TestDWords(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 64)
+				if err == nil {
+					fmt.Printf("%064s\n", strconv.FormatUint(oc64, 2))
+					fmt.Printf("%064s\n", strconv.FormatUint(uint64(ocWant), 2))
+				}
+			}
+		} else {
+			opcode := fmt.Sprintf("%08x", oc)
+			if !strings.Contains(tc.ins, opcode) {
+				t.Errorf("TestDWords(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 32)
+				if err == nil {
+					fmt.Printf("%032s\n", strconv.FormatUint(uint64(oc), 2))
+					fmt.Printf("%032s\n", strconv.FormatUint(uint64(ocWant), 2))
 				}
 			}
 		}
