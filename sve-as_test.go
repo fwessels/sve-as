@@ -107,6 +107,20 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04830ca4 // subr z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x048d0ca4 // uabd z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x05aadaaa // mov z10.s, p6/m,  z21.s"},
+		{"    WORD $0x2491b8e5 // cmpeq p5.s, p6/z,  z7.s, z17.s"},
+		{"    WORD $0x2494a55f // cmpne p15.s, p1/z, z10.s, z20.s"},
+		{"    WORD $0x249218c5 // cmphs p5.s, p6/z,  z6.s, z18.s"},
+		{"    WORD $0x249a1b61 // cmpls p1.s, p6/z, z26.s, z27.s"},
+		{"    WORD $0x249a1b61 // cmphs p1.s, p6/z, z27.s, z26.s"},
+		{"    WORD $0x249218d5 // cmphi p5.s, p6/z,  z6.s, z18.s"},
+		{"    WORD $0x249a1b72 // cmplo p2.s, p6/z, z26.s, z27.s"},
+		{"    WORD $0x249a1b72 // cmphi p2.s, p6/z, z27.s, z26.s"},
+		{"    WORD $0x2495896e // cmpge p14.s, p2/z, z11.s, z21.s"},
+		{"    WORD $0x248c8ecd // cmple p13.s, p3/z, z12.s, z22.s"},
+		{"    WORD $0x248c8ecd // cmpge p13.s, p3/z, z22.s, z12.s"},
+		{"    WORD $0x249791bc // cmpgt p12.s, p4/z, z13.s, z23.s"},
+		{"    WORD $0x248e971b // cmplt p11.s, p5/z, z14.s, z24.s"},
+		{"    WORD $0x248e971b // cmpgt p11.s, p5/z, z24.s, z14.s"},
 	}
 
 	for i, tc := range testCases {
