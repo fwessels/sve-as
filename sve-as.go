@@ -139,6 +139,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "hw", "0\t0")
 			return assem_r_i(templ, rd, "imm16", imm), 0, nil
+		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
+			// MOV <Zd>.<T>, <Pv>/M, <Zn>.<T>
+			//   is equivalent to
+			// SEL <Zd>.<T>, <Pv>, <Zn>.<T>, <Zd>.<T>
+			//   and is the preferred disassembly when Zd == Zm.
+			templ := "0	0	0	0	0	1	0	1	size	1	Zm	1	1	Pv	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_zz_4(templ, zd, pg, zn, zd), 0, nil
 		}
 	case "ldr":
 		if ok, zt, xn, imm := is_z_bi(args); ok {
@@ -164,16 +172,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 		}
 	case "lsr":
-		if ok, zd, zn, imm, T := is_z_zimm(args); ok {
-			tsz := getTypeSpecifier(T)[1:] // drop (5th) MSB bit for Q
-			if strings.ToUpper(T) == "D" {
-				tsz = tsz[:1] + "111" // set x bit for compat with 'as' (see https://docsmirror.github.io/A64/2023-06/lsr_z_zi.html)
-			}
-			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	1	0	0	1	0	1	Zn	Zd"
-			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
-			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
-			return assem_z_zi(templ, zd, zn, "imm3", imm), 0, nil
-		} else if ok, rd, rn, imm, _ := is_r_ri(args); ok {
+		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	x	1	1	1	1	1	Rn	Rd"
 			// see https://docsmirror.github.io/A64/2023-06/lsr_ubfm.html
 			// LSR <Xd>, <Xn>, #<shift>
@@ -189,6 +188,26 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+		} else if ok, zd, pg, zn, imm, T := is_z_p_zimm(args); ok {
+			templ := "0	0	0	0	0	1	0	0	tszh	0	0	0	0	0	1	1	0	0	Pg	tszl	imm3	Zdn"
+			imm3, tsz := computeSizeSpecifier(uint(imm), T)
+			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
+			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
+			if zd == zn {
+				return assem_z_p_zi(templ, zd, pg, "imm3", imm3), 0, nil
+			} else {
+				// we need to use a prefix
+				return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			}
+		} else if ok, zd, zn, imm, T := is_z_zimm(args); ok {
+			tsz := getTypeSpecifier(T)[1:] // drop (5th) MSB bit for Q
+			if strings.ToUpper(T) == "D" {
+				tsz = tsz[:1] + "111" // set x bit for compat with 'as' (see https://docsmirror.github.io/A64/2023-06/lsr_z_zi.html)
+			}
+			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	1	0	0	1	0	1	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
+			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
+			return assem_z_zi(templ, zd, zn, "imm3", imm), 0, nil
 		}
 	case "lsl":
 		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
@@ -587,6 +606,28 @@ func getTypeSpecifier(T string) string {
 	}
 }
 
+func computeSizeSpecifier(imm uint, T string) (int, string) {
+	switch strings.ToUpper(T) {
+	case "B":
+		if imm < 8 {
+			return int(imm), "0001"
+		}
+	case "H":
+		if imm < 16 {
+			return int(imm & 7), fmt.Sprintf("001%01b", imm>>3)
+		}
+	case "S":
+		if imm < 32 {
+			return int(imm & 7), fmt.Sprintf("01%02b", imm>>3)
+		}
+	case "D":
+		if imm < 64 {
+			return int(imm & 7), fmt.Sprintf("1%03b", imm>>3)
+		}
+	}
+	panic(fmt.Sprintf("computeTypeSpecifier: invalid immediate %d and %s combination", imm, T))
+}
+
 func is_p(args []string) (ok bool, pd int, T string) {
 	return true, 0, "d"
 }
@@ -786,6 +827,21 @@ func is_z_zimm(args []string) (ok bool, zd, zn, imm int, T string) {
 		if zd != -1 && zn != -1 && t1 == t2 {
 			if ok, imm = getImm(args[2]); ok {
 				return true, zd, zn, imm, t1
+			}
+		}
+	}
+	return
+}
+
+func is_z_p_zimm(args []string) (ok bool, zd, pg, zn, imm int, T string) {
+	if len(args) == 4 {
+		var t1, t2 string
+		zd, t1, _ = getZ(args[0])
+		pg = getP(strings.Split(args[1], "/")[0]) // drop any trailer
+		zn, t2, _ = getZ(args[2])
+		if zd != -1 && pg != -1 && zn != -1 && t1 == t2 {
+			if ok, imm = getImm(args[3]); ok {
+				return true, zd, pg, zn, imm, t1
 			}
 		}
 	}
@@ -1047,6 +1103,26 @@ func assem_z_zi(template string, zd, zn int, immPttrn string, imm int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
+	switch immPttrn {
+	case "imm2":
+		opcode = strings.ReplaceAll(opcode, "imm2", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(imm), 2)))
+	case "imm3":
+		opcode = strings.ReplaceAll(opcode, "imm3", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z_p_zi(template string, zdn, pg int, immPttrn string, imm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(pg), 2)))
 	switch immPttrn {
 	case "imm2":
 		opcode = strings.ReplaceAll(opcode, "imm2", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(imm), 2)))

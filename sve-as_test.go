@@ -106,6 +106,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04810ca4 // sub z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x04830ca4 // subr z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x048d0ca4 // uabd z4.s, p3/M, z4.s, z5.s"},
+		{"    WORD $0x05aadaaa // mov z10.s, p6/m,  z21.s"},
 	}
 
 	for i, tc := range testCases {
@@ -172,6 +173,11 @@ func TestDWords(t *testing.T) {
 		//
 		// Zeroing ...
 		{"    DWORD $0x0480046104902441 // add z1.s, p1/Z, z2.s, z3.s"},
+		//
+		{"    DWORD $0x0401858504112425 // lsr z5.b, p1/m, z1.b, #4"},
+		{"    DWORD $0x04018f0604512c46 // lsr z6.h, p3/m, z2.h, #8"},
+		{"    DWORD $0x0441960704913467 // lsr z7.s, p5/m, z3.s, #16"},
+		{"    DWORD $0x04c19c0804d13c88 // lsr z8.d, p7/m, z4.d, #32"},
 	}
 
 	for i, tc := range testCases {
