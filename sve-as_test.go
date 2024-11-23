@@ -38,6 +38,11 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04bf5050 // rdvl x16, #2"},
 		{"    WORD $0x9ac10800 // udiv x0, x0, x1"},
 		{"    WORD $0xd2800001 // mov   x1, #0"},
+		{"    WORD $0xd503201f // nop"},
+		{"    WORD $0xd65f03c0 // ret"},
+		{"    WORD $0x79400801 // ldrh w1, [x0, #4]"},
+		{"    WORD $0x79400003 // ldrh w3, [x0]"},
+
 		//
 		// vector instructions
 		{"    WORD $0x05e039e2 // mov z2.d, x15"},
@@ -77,9 +82,17 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x6594a231 // scvtf z17.s, p0/m, z17.s"},
 		{"    WORD $0x65b2023f // fmla z31.s, p0/M, z17.s, z18.s"},
 		{"    WORD $0x2538c1e0 // dup z0.b, #15"},
+		{"    WORD $0x2538de20 // dup z0.b, #-15"},
+		{"    WORD $0x25b8f016 // dup z22.s,  #-32768"},
+		{"    WORD $0x25b8eff6 // dup z22.s,  #0x7f00"},
+		{"    WORD $0x25b8e036 // dup z22.s,  #256"},
+		{"    WORD $0x25b8fff6 // dup z22.s,  #-256"},
+		{"    WORD $0x25b8eff6 // dup z22.s,  #32512"},
 		{"    WORD $0x2578c0e1 // dup z1.h, #7"},
 		{"    WORD $0x25b8c0a2 // dup z2.s, #5"},
 		{"    WORD $0x25f8c163 // dup z3.d, #11"},
+		{"    WORD $0x2538c816 // dup z22.b, #64"},
+		{"    WORD $0x043602d6 // add z22.b, z22.b, z22.b"},
 		{"    WORD $0x05800020 // and z0.b, z0.b, #1"},
 		{"    WORD $0x05800021 // and z1.h, z1.h, #1"},
 		{"    WORD $0x05800022 // and z2.s, z2.s, #1"},
@@ -99,11 +112,13 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04918ca4 // lsr z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x04958ca4 // lsrr z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x04980ca4 // orr z4.s, p3/M, z4.s, z5.s"},
+		{"    WORD $0x047f32ab // orr z11.d, z21.d, z31.d"},
 		{"    WORD $0x048c0ca4 // sabd z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x04960ca4 // sdivr z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x048a0ca4 // smin z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x04920ca4 // smulh z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x04810ca4 // sub z4.s, p3/M, z4.s, z5.s"},
+		{"    WORD $0x04fe068a // sub z10.d, z20.d, z30.d"},
 		{"    WORD $0x04830ca4 // subr z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x048d0ca4 // uabd z4.s, p3/M, z4.s, z5.s"},
 		{"    WORD $0x05aadaaa // mov z10.s, p6/m,  z21.s"},
@@ -126,12 +141,23 @@ func TestSveAssembler(t *testing.T) {
 	for i, tc := range testCases {
 		ins := strings.TrimSpace(strings.Split(tc.ins, "//")[1])
 		oc, oc2, err := Assemble(ins)
-		if err != nil || oc2 != 0 {
+		if err != nil {
 			t.Errorf("TestSveAssembler(%d): `%s`: %v", i, ins, err)
-		} else {
-			opcode := fmt.Sprintf("%08x", oc)
+		} else if oc2 != 0 {
+			oc64 := uint64(oc2)<<32 | uint64(oc)
+			opcode := fmt.Sprintf("0x%016x", oc64)
 			if !strings.Contains(tc.ins, opcode) {
-				t.Errorf("TestSveAssembler(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				t.Errorf("TestSveAssembler(%d): `%s`: got: %s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 64)
+				if err == nil {
+					fmt.Printf("%064s\n", strconv.FormatUint(oc64, 2))
+					fmt.Printf("%064s\n", strconv.FormatUint(uint64(ocWant), 2))
+				}
+			}
+		} else {
+			opcode := fmt.Sprintf("0x%08x ", oc)
+			if !strings.Contains(tc.ins, opcode) {
+				t.Errorf("TestSveAssembler(%d): `%s`: got: %s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
 				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 32)
 				if err == nil {
 					fmt.Printf("%032s\n", strconv.FormatUint(uint64(oc), 2))
@@ -198,12 +224,12 @@ func TestDWords(t *testing.T) {
 		ins := strings.TrimSpace(strings.Split(tc.ins, "//")[1])
 		oc, oc2, err := Assemble(ins)
 		if err != nil {
-			t.Errorf("TestSveAssembler(%d): `%s`: %v", i, ins, err)
+			t.Errorf("TestDWords(%d): `%s`: %v", i, ins, err)
 		} else if oc2 != 0 {
 			oc64 := uint64(oc2)<<32 | uint64(oc)
-			opcode := fmt.Sprintf("%016x", oc64)
+			opcode := fmt.Sprintf("0x%016x", oc64)
 			if !strings.Contains(tc.ins, opcode) {
-				t.Errorf("TestDWords(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				t.Errorf("TestDWords(%d): `%s`: got: %s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
 				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 64)
 				if err == nil {
 					fmt.Printf("%064s\n", strconv.FormatUint(oc64, 2))
@@ -211,9 +237,55 @@ func TestDWords(t *testing.T) {
 				}
 			}
 		} else {
-			opcode := fmt.Sprintf("%08x", oc)
+			opcode := fmt.Sprintf("0x%08x ", oc)
 			if !strings.Contains(tc.ins, opcode) {
-				t.Errorf("TestDWords(%d): `%s`: got: 0x%s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				t.Errorf("TestDWords(%d): `%s`: got: %s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 32)
+				if err == nil {
+					fmt.Printf("%032s\n", strconv.FormatUint(uint64(oc), 2))
+					fmt.Printf("%032s\n", strconv.FormatUint(uint64(ocWant), 2))
+				}
+			}
+		}
+	}
+}
+
+func TestZeroing(t *testing.T) {
+	testCases := []struct {
+		ins string
+	}{
+		//
+		{"    DWORD $0x0480046104902421 // add z1.s, p1/Z, z1.s, z3.s"}, /* /Z should always generate a prefix instruction, even in case of Zdn */
+		{"    DWORD $0x04800461         // add z1.s, p1/M, z1.s, z3.s"},
+		{"    DWORD $0x0480046104902441 // add z1.s, p1/Z, z2.s, z3.s"},
+		{"    DWORD $0x0480046104912441 // add z1.s, p1/M, z2.s, z3.s"},
+		//
+		{"    DWORD $0x0480046104902421 // add z1.s, p1/z, z1.s, z3.s"}, /* /z should always generate a prefix instruction, even in case of Zdn */
+		{"    DWORD $0x04800461         // add z1.s, p1/m, z1.s, z3.s"},
+		{"    DWORD $0x0480046104902441 // add z1.s, p1/z, z2.s, z3.s"},
+		{"    DWORD $0x0480046104912441 // add z1.s, p1/m, z2.s, z3.s"},
+	}
+
+	for i, tc := range testCases {
+		ins := strings.TrimSpace(strings.Split(tc.ins, "//")[1])
+		oc, oc2, err := Assemble(ins)
+		if err != nil {
+			t.Errorf("TestZeroing(%d): `%s`: %v", i, ins, err)
+		} else if oc2 != 0 {
+			oc64 := uint64(oc2)<<32 | uint64(oc)
+			opcode := fmt.Sprintf("0x%016x", oc64)
+			if !strings.Contains(tc.ins, opcode) {
+				t.Errorf("TestZeroing(%d): `%s`: got: %s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
+				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 64)
+				if err == nil {
+					fmt.Printf("%064s\n", strconv.FormatUint(oc64, 2))
+					fmt.Printf("%064s\n", strconv.FormatUint(uint64(ocWant), 2))
+				}
+			}
+		} else {
+			opcode := fmt.Sprintf("0x%08x ", oc)
+			if !strings.Contains(tc.ins, opcode) {
+				t.Errorf("TestZeroing(%d): `%s`: got: %s want: %s", i, ins, opcode, strings.Fields(tc.ins)[1][1:])
 				ocWant, err := strconv.ParseUint(strings.Fields(tc.ins)[1][3:], 16, 32)
 				if err == nil {
 					fmt.Printf("%032s\n", strconv.FormatUint(uint64(oc), 2))

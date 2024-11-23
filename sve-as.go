@@ -43,12 +43,22 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	0	size	1	Zm	0	0	0	0	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
-		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		} else if ok, zd, zn, imm, shift, T := is_z_zi(args); ok {
+			if zd != zn {
+				return assem_prefixed_z_z(ins, zd, zn)
+			} else {
+				templ := "0	0	1	0	0	1	0	1	size	1	0	0	0	0	0	1	1	sh	imm8	Zdn"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				templ = strings.ReplaceAll(templ, "sh", strconv.Itoa(shift))
+				templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+				return assem_z_i(templ, zd, "imm8", imm), 0, nil
+			}
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	0	0	0	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "udiv":
 		if ok, rd, rn, rm := is_r_rr(args); ok {
@@ -68,12 +78,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_ri(templ, rd, rn, "imm6", imm, shift), 0, nil
 		}
 	case "mul":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "tst":
 		if ok, rn, rm := is_rr(args); ok {
@@ -90,22 +100,22 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, zdn, zn, imm, _ := is_z_zimm(args); ok && zdn == zn {
 			templ := "0	0	0	0	0	1	0	1	1	0	0	0	0	0	imm13	Zdn"
 			return assem_z2_i(templ, zdn, "imm13", imm), 0, nil
-		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	1	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "eor":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
 			return assem_z_zz("0	0	0	0	0	1	0	0	1	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), 0, nil
-		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	1	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "tbl":
 		if ok, zd, zn, zm, T := is_z_zz(args); ok {
@@ -121,12 +131,23 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, zd, imm, T := is_z_i(args); ok {
 			templ := "0	0	1	0	0	1	0	1	size	1	1	1	0	0	0	1	1	sh	imm8	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			sh := "1"
+			sh := ""
 			if imm >= -128 && imm <= 127 {
 				sh = "0"
+				if imm < 0 {
+					imm = 0x100 + imm
+				}
+			} else if imm >= -128*256 && imm <= 127*256 && imm%256 == 0 {
+				sh = "1"
+				if imm < 0 {
+					imm = 0x10000 + imm
+				}
+				imm = imm >> 8
 			}
-			templ = strings.ReplaceAll(templ, "sh", sh)
-			return assem_z_i(templ, zd, "imm8", imm), 0, nil
+			if sh != "" {
+				templ = strings.ReplaceAll(templ, "sh", sh)
+				return assem_z_i(templ, zd, "imm8", imm), 0, nil
+			}
 		}
 	case "mov":
 		if ok, zd, rn, T := is_z_r(args); ok {
@@ -171,6 +192,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "1	1	1	0	0	1	0	1	1	1	1	Rm	0	1	0	Pg	Rn	Zt"
 			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 		}
+	case "ldrh":
+		if ok, rt, rn, imm12 := is_r_bi(args); ok {
+			templ := "0	1	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
+			templ = strings.ReplaceAll(templ, "Rt", "Rd")
+			templ = strings.ReplaceAll(templ, "sh", "")
+			return assem_r_ri(templ, rt, rn, "imm12", imm12/2, 0), 0, nil
+		}
 	case "lsr":
 		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	x	1	1	1	1	1	Rn	Rd"
@@ -182,12 +210,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "N", "1")
 			templ = strings.ReplaceAll(templ, "x", "1") // x bit is set for compat with 'as'
 			return assem_r_ri(templ, rd, rn, "immr", imm, 0), 0, nil
-		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		} else if ok, zd, pg, zn, imm, T := is_z_p_zimm(args); ok {
 			templ := "0	0	0	0	0	1	0	0	tszh	0	0	0	0	0	1	1	0	0	Pg	tszl	imm3	Zdn"
 			imm3, tsz := computeSizeSpecifier(uint(imm), T)
@@ -197,7 +225,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z_p_zi(templ, zd, pg, "imm3", imm3), 0, nil
 			} else {
 				// we need to use a prefix
-				return assem_prefixed(ins, args[1], zd, pg, zn, T)
+				return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 			}
 		} else if ok, zd, zn, imm, T := is_z_zimm(args); ok {
 			tsz := getTypeSpecifier(T)[1:] // drop (5th) MSB bit for Q
@@ -222,12 +250,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "N", "1")
 			templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
 			return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
-		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	1	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "rdvl":
 		if ok, rd, imm := is_r_i(args); ok {
@@ -350,12 +378,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
 			return assem_z_zi(templ, zd, zn, "imm3", imm), 0, nil
-		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	0	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "scvtf":
 		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
@@ -379,125 +407,133 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_p_zz_4(templ, zd, pv, zn, zm), 0, nil
 		}
 	case "splice":
-		if ok, zdn, pv, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pv, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	1	1	0	0	1	0	0	Pv	Zm	Zdn" // Destructive variant
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			templ = strings.ReplaceAll(templ, "Pv", "Pg") // both are 3 bits
 			return assem_z2_p_z(templ, zdn, pv, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "asrr":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	0	0	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "bic":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	1	1	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "clasta":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	1	0	0	0	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "clastb":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	1	0	0	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "lslr":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	1	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "lsrr":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	0	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "orr":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zd, zn, zm, T := is_z_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	0	1	1	Zm	0	0	1	1	0	0	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "sabd":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	1	1	0	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "sdivr":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	1	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "smin":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	1	0	1	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "smulh":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	1	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "sub":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zd, zn, zm, T := is_z_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	1	Zm	0	0	0	0	0	1	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	0	0	0	1	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "subr":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	0	0	1	1	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "uabd":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	1	1	0	1	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed(ins, args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "movprfx":
 		if ok, zd, zn, T := is_z_z(args); ok {
@@ -506,7 +542,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z_z(templ, zd, zn), 0, nil
 			}
 		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
-			return assem_prefixed("", args[1], zd, pg, zn, T)
+			return assem_prefixed_z_p_z("", args[1], zd, pg, zn, T)
 		}
 	case "cmpeq":
 		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
@@ -568,13 +604,28 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
 		}
+	case "nop":
+		templ := "1	1	0	1	0	1	0	1	0	0	0	0	0	0	1	1	0	0	1	0	0	0	0	0	0	0	0	1	1	1	1	1"
+		templ = strings.ReplaceAll(templ, "\t", "")
+		code, _ := strconv.ParseUint(templ, 2, 32)
+		return uint32(code), 0, nil
+	case "ret":
+		templ := "1	1	0	1	0	1	1	0	0	1	0	1	1	1	1	1	0	0	0	0	0	0	Rn	0	0	0	0	0"
+		templ = strings.ReplaceAll(templ, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(30, 2)))
+		templ = strings.ReplaceAll(templ, "\t", "")
+		code, _ := strconv.ParseUint(templ, 2, 32)
+		return uint32(code), 0, nil
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)
 }
 
+func is_zeroing(predicate string) bool {
+	return strings.HasSuffix(strings.ToUpper(predicate), "/Z")
+}
+
 func getR(r string) int {
-	if len(r) > 0 && r[0] == 'x' {
+	if len(r) > 0 && (r[0] == 'x' || r[0] == 'w') {
 		if r[1:] == "zr" {
 			return 31 // https://stackoverflow.com/questions/42788696/why-might-one-use-the-xzr-register-instead-of-the-literal-0-on-armv8
 		} else if num, err := strconv.ParseInt(r[1:], 10, 32); err == nil && num < 32 {
@@ -739,6 +790,18 @@ func is_r_ri(args []string) (ok bool, rd, rn, imm, shift int) {
 	return
 }
 
+func is_r_bi(args []string) (ok bool, rt, xn, imm int) {
+	if len(args) >= 2 {
+		rt = getR(args[0])
+		if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+			if xn, imm = getMemAddrImm(args[1:]); xn != -1 {
+				return true, rt, xn, imm
+			}
+		}
+	}
+	return
+}
+
 func is_z_z(args []string) (ok bool, zd, zn int, T string) {
 	if len(args) == 2 {
 		var t1, t2 string
@@ -759,6 +822,23 @@ func is_z_zz(args []string) (ok bool, zd, zn, zm int, T string) {
 		zm, t3, _ = getZ(args[2])
 		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 {
 			return true, zd, zn, zm, t1
+		}
+	}
+	return
+}
+
+func is_z_zi(args []string) (ok bool, zd, zn, imm, shift int, T string) {
+	if len(args) >= 3 {
+		var t2 string
+		zd, T, _ = getZ(args[0])
+		zn, t2, _ = getZ(args[1])
+		if zd != -1 && zn != -1 && T == t2 {
+			if ok, imm := getImm(args[2]); ok {
+				if len(args) >= 4 && args[3] == "LSL" && args[4] == "#8" {
+					return true, zd, zn, imm, 1, T
+				}
+				return true, zd, zn, imm, 0, T
+			}
 		}
 	}
 	return
@@ -832,6 +912,23 @@ func is_z_p_zz(args []string) (ok bool, zdn, pg, zm int, T string) {
 		}
 	}
 	return
+}
+
+func assem_prefixed_z_z(ins string, zd, zn int) (opcode, opcode2 uint32, err error) {
+	//
+	// insert 'MOVPRFX (unpredicated)' instruction
+	//
+	templ := "0	0	0	0	0	1	0	0	0	0	1	0	0	0	0	0	1	0	1	1	1	1	Zn	Zd"
+	prfx := assem_z_z(templ, zd, zn)
+	if ins == "" {
+		return prfx, 0, nil // we're just assembling a prefix instruction
+	}
+
+	insPatched := strings.ReplaceAll(ins, fmt.Sprintf("z%d.", zn), fmt.Sprintf("z%d.", zd))
+	if oc, oc2, err := Assemble(insPatched); err == nil && oc2 == 0 {
+		return prfx, oc, nil
+	}
+	return 0, 0, fmt.Errorf("unhandled 'MOVPRFX (unpredicated)' instruction: %s", ins)
 }
 
 func is_prefixed_z_p_zz(args []string) (ok bool, zd, pg, zn, zm int, T string) {
@@ -967,6 +1064,29 @@ func is_r_i(args []string) (ok bool, rd int, imm int) {
 	return
 }
 
+func getMemAddrImm(args []string) (xn, imm int) {
+	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+		memaddr := strings.Join(args[0:], ", ")
+		memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL").Replace(memaddr)
+		mas := strings.Split(memaddr, ", ")
+		if len(mas) >= 1 {
+			xn = getR(mas[0])
+			if len(mas) == 3 && mas[2] == "MUL VL" {
+				if ok, imm := getImm(mas[1]); ok && xn != -1 {
+					return xn, imm
+				}
+			} else if len(mas) == 2 && mas[1][0] == '#' {
+				if ok, imm := getImm(mas[1]); ok && xn != -1 {
+					return xn, imm
+				}
+			} else if xn != -1 {
+				return xn, 0
+			}
+		}
+	}
+	return -1, 0
+}
+
 func is_z_bi(args []string) (ok bool, zt, xn, imm int) {
 	if len(args) > 1 {
 		zt, _, _ = getZ(args[0])
@@ -1022,7 +1142,10 @@ func is_z_p_rr(args []string) (ok bool, zt, pg, rn, rm int) {
 	return
 }
 
-func assem_prefixed(ins, arg_1 string, zd, pg, zn int, T string) (opcode, opcode2 uint32, err error) {
+func assem_prefixed_z_p_z(ins, arg_1 string, zd, pg, zn int, T string) (opcode, opcode2 uint32, err error) {
+	//
+	// insert 'MOVPRFX (predicated)' instruction
+	//
 	templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	M	0	0	1	Pg	Zn	Zd"
 	templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 	if strings.Contains(strings.ToUpper(arg_1), "/M") {
@@ -1038,11 +1161,15 @@ func assem_prefixed(ins, arg_1 string, zd, pg, zn int, T string) (opcode, opcode
 		return prfx, 0, nil // we're just assembling a prefix instruction
 	}
 
+	// Make sure we hit "Zdn" path by setting Zd == Zn
 	insPatched := strings.ReplaceAll(ins, fmt.Sprintf("z%d.", zn), fmt.Sprintf("z%d.", zd))
+	// "/Z" is handled via MOVPRFX (see above), so always use merging behaviour
+	rplc := strings.NewReplacer("/Z", "/M", "/z", "/m")
+	insPatched = rplc.Replace(insPatched)
 	if oc, oc2, err := Assemble(insPatched); err == nil && oc2 == 0 {
 		return prfx, oc, nil
 	}
-	return 0, 0, fmt.Errorf("unhandled (prefixed) instruction: %s", ins)
+	return 0, 0, fmt.Errorf("unhandled 'MOVPRFX (predicated)' instruction: %s", ins)
 }
 
 func assem_p(template string, pd int) uint32 {
