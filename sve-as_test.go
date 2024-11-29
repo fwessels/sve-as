@@ -136,6 +136,23 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x249791bc // cmpgt p12.s, p4/z, z13.s, z23.s"},
 		{"    WORD $0x248e971b // cmplt p11.s, p5/z, z14.s, z24.s"},
 		{"    WORD $0x248e971b // cmpgt p11.s, p5/z, z24.s, z14.s"},
+		{"    WORD $0x2550d0a0 // ptest p4, p5.b"},
+		{"    WORD $0x2598e084 // ptrue p4.s, VL4"},
+		{"    WORD $0x2598e3e3 // ptrue p3.s"},
+		{"    WORD $0x258554a6 // mov   p6.b, p5.b"},
+		{"    WORD $0x855c5482 // ld1w  { z2.s }, p5/z, [x4, z28.s, sxtw]"},
+		{"    WORD $0x8540de9b // ld1rw { z27.s }, p7/z, [x20]"},
+		{"    WORD $0x04018f06 // lsr   z6.h, p3/m, z6.h, #8"},
+		{"    WORD $0x04419607 // lsr   z7.s, p5/m, z7.s, #16"},
+		{"    WORD $0x04419b0b // lsr   z11.s, p6/m, z11.s, #8"},
+		{"    WORD $0x046696d2 // lsr   z18.s, z22.s, #26"},
+		{"    WORD $0x047096d2 // lsr   z18.s, z22.s, #16"},
+		{"    WORD $0x046896d2 // lsr   z18.s, z22.s, #24"},
+		{"    WORD $0x047896d2 // lsr   z18.s, z22.s, #8"},
+		{"    WORD $0x0499bf6a // clz   z10.s, p7/m, z27.s"},
+		{"    WORD $0xe5ef40c1 // st1d  { z1.d }, p0, [x6, x15, lsl #3]"},
+		{"    WORD $0xe440fe8b // st1b  { z11.s }, p7, [x20]"},
+		{"    WORD $0xe5800281 // str   p1, [x20]"},
 	}
 
 	for i, tc := range testCases {
@@ -213,6 +230,7 @@ func TestDWords(t *testing.T) {
 		//
 		// Zeroing ...
 		{"    DWORD $0x0480046104902441 // add z1.s, p1/Z, z2.s, z3.s"},
+		{"    WORD $0x0480046104902421 // add z1.s, p1/Z, z1.s, z3.s"}, /* /Z should always generate a prefix instruction, even in case of Zdn */
 		//
 		{"    DWORD $0x0401858504112425 // lsr z5.b, p1/m, z1.b, #4"},
 		{"    DWORD $0x04018f0604512c46 // lsr z6.h, p3/m, z2.h, #8"},
