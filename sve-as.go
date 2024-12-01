@@ -17,6 +17,7 @@ package sve_as
 
 import (
 	"fmt"
+	"math/bits"
 	"strconv"
 	"strings"
 )
@@ -97,9 +98,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	case "and":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
 			return assem_z_zz("0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), 0, nil
-		} else if ok, zdn, zn, imm, _ := is_z_zimm(args); ok && zdn == zn {
-			templ := "0	0	0	0	0	1	0	1	1	0	0	0	0	0	imm13	Zdn"
-			return assem_z2_i(templ, zdn, "imm13", imm), 0, nil
+		} else if ok, zdn, zn, imm, T := is_z_zimm(args); ok && zdn == zn {
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "0	0	0	0	0	1	0	1	1	0	0	0	0	0	imm13	Zdn"
+				templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+				imm13 := getImm13(imms, immr, T)
+				return assem_z_i(templ, zdn, "imm13", int(imm13)), 0, nil
+			}
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	1	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -110,6 +115,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	case "eor":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
 			return assem_z_zz("0	0	0	0	0	1	0	0	1	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), 0, nil
+		} else if ok, zdn, zn, imm, T := is_z_zimm(args); ok && zdn == zn {
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "0	0	0	0	0	1	0	1	0	1	0	0	0	0	imm13	Zdn"
+				templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+				imm13 := getImm13(imms, immr, T)
+				return assem_z_i(templ, zdn, "imm13", int(imm13)), 0, nil
+			}
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	1	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -122,6 +134,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	0	0	1	1	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		}
+	case "dupm": // duplicate with (contiguous) bit mask
+		if ok, zd, imm, T := is_z_i(args); ok {
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "0	0	0	0	0	1	0	1	1	1	0	0	0	0	imm13	Zd"
+				imm13 := getImm13(imms, immr, T)
+				return assem_z_i(templ, zd, "imm13", int(imm13)), 0, nil
+			}
 		}
 	case "dup":
 		if ok, zd, zn, imm, T := is_z_zindexed(args); ok {
@@ -551,6 +571,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	0	0	1	1	Zm	0	0	1	1	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		} else if ok, zdn, zn, imm, T := is_z_zimm(args); ok && zdn == zn {
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "0	0	0	0	0	1	0	1	0	0	0	0	0	0	imm13	Zdn"
+				templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+				imm13 := getImm13(imms, immr, T)
+				return assem_z_i(templ, zdn, "imm13", int(imm13)), 0, nil
+			}
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -779,18 +806,59 @@ func getZ(reg string) (_ int, T string, index int) {
 func getImm(imm string) (bool, int) {
 	if len(imm) > 3 && imm[:3] == "#0x" {
 		imm = imm[3:]
-		if num, err := strconv.ParseInt(imm, 16, 32); err == nil {
+		if num, err := strconv.ParseUint(imm, 16, 64); err == nil {
 			return true, int(num)
 		}
-	}
-	if len(imm) > 0 && imm[0] == '#' {
+	} else if len(imm) > 2 && imm[:2] == "#-" {
 		imm = imm[1:]
-		if num, err := strconv.ParseInt(imm, 10, 32); err == nil {
+		if num, err := strconv.ParseInt(imm, 10, 64); err == nil {
+			return true, int(num)
+		}
+	} else if len(imm) > 0 && imm[0] == '#' {
+		imm = imm[1:]
+		if num, err := strconv.ParseUint(imm, 10, 64); err == nil {
 			return true, int(num)
 		}
 	}
 	fmt.Printf("Invalid immediate: %s\n", imm)
 	return false, 0
+}
+
+// imms: imms is the number of bits **set**
+// immr: immr is the number of bits to **rotate**
+func getImm13(imms, immr uint32, T string) (imm13 uint32) {
+	if T == "b" {
+		imm13 = ((8-immr)&7)<<6 | (0x30 + imms - 1)
+	} else if T == "h" {
+		imm13 = ((16-immr)&15)<<6 | (0x20 + imms - 1)
+	} else if T == "s" {
+		imm13 = ((32-immr)&31)<<6 | (imms - 1)
+	} else if T == "d" {
+		imm13 = 1<<12 | ((64-immr)&63)<<6 | (imms - 1)
+	} else {
+		panic("unimplemented")
+	}
+	return
+}
+
+// find a (lsb, width) pair for BFC
+// lsb must be in [0, 63], width must be in [1, 64 - lsb]
+// return (0xffffffff, 0) if v is not a binary like 0...01...10...0
+func parseBitfieldConst(v uint64) (lsb, width uint32) {
+	// BFC is not applicable with zero
+	if v != 0 {
+		// find the lowest set bit, for example l=2 for 0x3ffffffc
+		lsb = uint32(bits.TrailingZeros64(v))
+		// m-1 represents the highest set bit index, for example m=30 for 0x3ffffffc
+		m := 64 - uint32(bits.LeadingZeros64(v))
+		// check if v is a binary like 0...01...10...0
+		if uint64(1<<m)-(1<<lsb) == v {
+			// it must be m > l for non-zero v
+			return lsb, m - lsb
+		}
+	}
+	// invalid
+	return 0xffffffff, 0
 }
 
 func getSizeFromType(T string) string {
@@ -1459,21 +1527,6 @@ func assem_z_i(template string, zd int, immPttrn string, imm int) uint32 {
 	switch immPttrn {
 	case "imm8":
 		opcode = strings.ReplaceAll(opcode, "imm8", fmt.Sprintf("%0*s", 8, strconv.FormatUint(uint64(imm), 2)))
-	default:
-		fmt.Println("Invalid immediate pattern: ", immPttrn)
-	}
-	opcode = strings.ReplaceAll(opcode, "\t", "")
-	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
-		panic(err)
-	} else {
-		return uint32(code)
-	}
-}
-
-func assem_z2_i(template string, zdn int, immPttrn string, imm int) uint32 {
-	opcode := template
-	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
-	switch immPttrn {
 	case "imm13":
 		opcode = strings.ReplaceAll(opcode, "imm13", fmt.Sprintf("%0*s", 13, strconv.FormatUint(uint64(imm), 2)))
 	default:
