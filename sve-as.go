@@ -195,6 +195,18 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_zz_4(templ, zd, pg, zn, zd), 0, nil
 		}
+	case "mvn":
+		if ok, rd, rn := is_r_r(args); ok {
+			// MVN <Xd>, <Xm>{, <shift> #<amount>}
+			// is equivalent to
+			// ORN <Xd>, XZR, <Xm>{, <shift> #<amount>}
+			templ := "sf	0	1	0	1	0	1	0	shift	1	Rm	imm6	1	1	1	1	1	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", "0\t0")
+			templ = strings.ReplaceAll(templ, "Rm", "Rn")
+			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
+		}
+
 	case "ldr":
 		if ok, zt, xn, imm := is_z_bi(args); ok {
 			templ := "1	0	0	0	0	1	0	1	1	0	imm9h	0	1	0	imm9l	Rn	Zt"
@@ -827,14 +839,15 @@ func getImm(imm string) (bool, int) {
 // imms: imms is the number of bits **set**
 // immr: immr is the number of bits to **rotate**
 func getImm13(imms, immr uint32, T string) (imm13 uint32) {
+	imm13 = (imms - 1)
 	if T == "b" {
-		imm13 = ((8-immr)&7)<<6 | (0x30 + imms - 1)
+		imm13 |= ((8-immr)&7)<<6 | 0x30
 	} else if T == "h" {
-		imm13 = ((16-immr)&15)<<6 | (0x20 + imms - 1)
+		imm13 |= ((16-immr)&15)<<6 | 0x20
 	} else if T == "s" {
-		imm13 = ((32-immr)&31)<<6 | (imms - 1)
+		imm13 |= ((32 - immr) & 31) << 6
 	} else if T == "d" {
-		imm13 = 1<<12 | ((64-immr)&63)<<6 | (imms - 1)
+		imm13 |= 1<<12 | ((64-immr)&63)<<6
 	} else {
 		panic("unimplemented")
 	}
@@ -951,6 +964,16 @@ func is_r_rr(args []string) (ok bool, rd, rn, rm int) {
 		rd, rn, rm = getR(args[0]), getR(args[1]), getR(args[2])
 		if rd != -1 && rn != -1 && rm != -1 {
 			return true, rd, rn, rm
+		}
+	}
+	return
+}
+
+func is_r_r(args []string) (ok bool, rd, rn int) {
+	if len(args) >= 2 {
+		rd, rn = getR(args[0]), getR(args[1])
+		if rd != -1 && rn != -1 {
+			return true, rd, rn
 		}
 	}
 	return
