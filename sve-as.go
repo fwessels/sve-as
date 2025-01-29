@@ -458,12 +458,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_p_z(templ, zd, pg, zn), 0, nil
 		}
 	case "sdot":
-		if ok, zda, zn, zm, T, Tb := is_z_zz_Tb(args); ok {
+		if ok, zda, zn, zm, Td, T := is_z_zz_2t(args); ok {
 			templ := "0	1	0	0	0	1	0	0	size	0	Zm	0	0	0	0	0	0	Zn	Zda"
-			if T == "d" && Tb == "h" {
+			if Td == "d" && T == "h" {
 				templ = strings.ReplaceAll(templ, "size", "11")
 				return assem_z_zz2(templ, zda, zn, zm), 0, nil
-			} else if T == "s" && Tb == "b" {
+			} else if Td == "s" && T == "b" {
 				templ = strings.ReplaceAll(templ, "size", "10")
 				return assem_z_zz2(templ, zda, zn, zm), 0, nil
 			}
@@ -741,6 +741,16 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "S", "1")
 			templ = strings.ReplaceAll(templ, "op", "0")
 			return assem_p_p(templ, pg, pn), 0, nil
+		}
+	case "pmullb", "pmullt":
+		if ok, zd, zn, zm, Td, T := is_z_zz_2t(args); ok {
+			templ := "0	1	0	0	0	1	0	1	0	0	0	Zm	0	1	1	0	1	0	Zn	Zd"
+			if mnem == "pmullt" {
+				templ = "0	1	0	0	0	1	0	1	0	0	0	Zm	0	1	1	0	1	1	Zn	Zd"
+			}
+			if Td == "q" && T == "d" {
+				return assem_z_zz(templ, zd, zn, zm), 0, nil
+			}
 		}
 	case "nop":
 		templ := "1	1	0	1	0	1	0	1	0	0	0	0	0	0	1	1	0	0	1	0	0	0	0	0	0	0	0	1	1	1	1	1"
@@ -1048,14 +1058,14 @@ func is_z_zi(args []string) (ok bool, zd, zn, imm, shift int, T string) {
 	return
 }
 
-func is_z_zz_Tb(args []string) (ok bool, zd, zn, zm int, T, Tb string) {
+func is_z_zz_2t(args []string) (ok bool, zd, zn, zm int, Td, T string) {
 	if len(args) == 3 {
-		var t1, t2, t3 string
-		zd, t1, _ = getZ(args[0])
+		var td, t2, t3 string
+		zd, td, _ = getZ(args[0])
 		zn, t2, _ = getZ(args[1])
 		zm, t3, _ = getZ(args[2])
 		if zd != -1 && zn != -1 && zm != -1 && t2 == t3 {
-			return true, zd, zn, zm, t1, t2
+			return true, zd, zn, zm, td, t2
 		}
 	}
 	return

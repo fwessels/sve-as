@@ -172,6 +172,8 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xe5ef40c1 // st1d  { z1.d }, p0, [x6, x15, lsl #3]"},
 		{"    WORD $0xe440fe8b // st1b  { z11.s }, p7, [x20]"},
 		{"    WORD $0xe5800281 // str   p1, [x20]"},
+		{"    WORD $0x45016802 // pmullb z2.q, z0.d, z1.d"},
+		{"    WORD $0x45036c85 // pmullt z5.q, z4.d, z3.d"},
 	}
 
 	for i, tc := range testCases {
