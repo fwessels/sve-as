@@ -1638,6 +1638,8 @@ func assem_r_i(template string, rd int, immPttrn string, imm int) uint32 {
 		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
 	case "imm16":
 		opcode = strings.ReplaceAll(opcode, "imm16", fmt.Sprintf("%0*s", 16, strconv.FormatUint(uint64(imm), 2)))
+	case "immhi":
+		opcode = strings.ReplaceAll(opcode, "immhi", fmt.Sprintf("%0*s", 19, strconv.FormatUint(uint64(imm), 2)))
 	default:
 		fmt.Println("Invalid immediate pattern: ", immPttrn)
 	}
