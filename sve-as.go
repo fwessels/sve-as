@@ -206,7 +206,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Rm", "Rn")
 			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
 		}
-
+	case "adr":
+		if ok, rd, imm := is_r_i(args); ok {
+			templ := "0	immlo	1	0	0	0	0	immhi	Rd"
+			templ = strings.ReplaceAll(templ, "immlo", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(imm&3), 2)))
+			return assem_r_i(templ, rd, "immhi", imm>>2), 0, nil
+		}
 	case "ldr":
 		if ok, zt, xn, imm := is_z_bi(args); ok {
 			templ := "1	0	0	0	0	1	0	1	1	0	imm9h	0	1	0	imm9l	Rn	Zt"

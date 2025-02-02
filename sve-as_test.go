@@ -43,6 +43,8 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xd65f03c0 // ret"},
 		{"    WORD $0x79400801 // ldrh w1, [x0, #4]"},
 		{"    WORD $0x79400003 // ldrh w3, [x0]"},
+		{"    WORD $0x50002682 // adr x2, #1234"},
+		{"    WORD $0x10000801 // adr x1, #256"},
 
 		//
 		// vector instructions
