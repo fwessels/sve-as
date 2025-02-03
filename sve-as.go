@@ -227,6 +227,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, pt, xn, imm := is_p_bi(args); ok {
 			templ := "1	1	1	0	0	1	0	1	1	0	imm9h	0	0	0	imm9l	Rn	0	Pt"
 			return assem_p_bi(templ, pt, xn, imm), 0, nil
+		} else if ok, rt, rn, imm12 := is_r_bi(args); ok {
+			templ := "1	x	1	1	1	0	0	1	0	0	imm12	Rn	Rt"
+			templ = strings.ReplaceAll(templ, "Rt", "Rd")
+			templ = strings.ReplaceAll(templ, "x", "1")
+			return assem_r_ri(templ, rt, rn, "imm12", imm12/8, 0), 0, nil
 		}
 	case "ld1d":
 		if ok, zt, pg, rn, rm := is_z_p_rr(args); ok {
