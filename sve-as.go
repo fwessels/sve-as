@@ -208,6 +208,9 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		}
 	case "adr":
 		if ok, rd, imm := is_r_i(args); ok {
+			if imm < 0 {
+				imm = (1 << 21) + imm
+			}
 			templ := "0	immlo	1	0	0	0	0	immhi	Rd"
 			templ = strings.ReplaceAll(templ, "immlo", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(imm&3), 2)))
 			return assem_r_i(templ, rd, "immhi", imm>>2), 0, nil

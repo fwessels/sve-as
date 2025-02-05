@@ -45,6 +45,8 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x79400003 // ldrh w3, [x0]"},
 		{"    WORD $0x50002682 // adr x2, #1234"},
 		{"    WORD $0x10000801 // adr x1, #256"},
+		{"    WORD $0x10ffe002 // adr x2, #-1024"},
+		{"    WORD $0x10ffefe3 // adr x3, #-516"},
 		{"    WORD $0xf9000041 // str x1, [x2]"},
 		{"    WORD $0xf900068a // str x10, [x20, #8]"},
 
