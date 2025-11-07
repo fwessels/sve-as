@@ -267,7 +267,7 @@ func TestDWords(t *testing.T) {
 		//
 		// Zeroing ...
 		{"    DWORD $0x0480046104902441 // add z1.s, p1/Z, z2.s, z3.s"},
-		{"    WORD $0x0480046104902421 // add z1.s, p1/Z, z1.s, z3.s"}, /* /Z should always generate a prefix instruction, even in case of Zdn */
+		{"    DWORD $0x0480046104902421 // add z1.s, p1/Z, z1.s, z3.s"}, /* /Z should always generate a prefix instruction, even in case of Zdn */
 		//
 		{"    DWORD $0x0401858504112425 // lsr z5.b, p1/m, z1.b, #4"},
 		{"    DWORD $0x04018f0604512c46 // lsr z6.h, p3/m, z2.h, #8"},
