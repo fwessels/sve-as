@@ -70,6 +70,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x0450058d // mul z13.h, p1/M, z13.h, z12.h"},
 		{"    WORD $0x05253065 // tbl z5.b, z3.b, z5.b"},
 		{"    WORD $0x05283086 // tbl z6.b, z4.b, z8.b"},
+		{"    WORD $0x052b2927 // tbl z7.b, { z9.b, z10.b }, z11.b"},
 		{"    WORD $0x04a33080 // eor z0.d, z4.d, z3.d"},
 		{"    WORD $0x05212042 // dup z2.b, z2.b[0]"},
 		{"    WORD $0x04fc94c7 // lsr z7.d, z6.d, #4"},

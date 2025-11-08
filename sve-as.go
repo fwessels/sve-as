@@ -130,7 +130,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "tbl":
-		if ok, zd, zn, zm, T := is_z_zz(args); ok {
+		if ok, zd, zn1, zn2, zm, T := is_z_zz_z(args); ok && zn2 == zn1+1 {
+			templ := "0	0	0	0	0	1	0	1	size	1	Zm	0	0	1	0	1	0	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn1, zm), 0, nil
+		} else if ok, zd, zn, zm, T := is_z_zz(args); ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	0	0	1	1	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
@@ -1297,8 +1301,22 @@ func is_z_zzz(args []string) (ok bool, zd, zn, zm, za int, T string) {
 		zn, t2, _ = getZ(args[1])
 		zm, t3, _ = getZ(args[2])
 		za, t4, _ = getZ(args[3])
-		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 && t3 == t4 {
+		if zd != -1 && zn != -1 && zm != -1 && za != -1 && t1 == t2 && t2 == t3 && t3 == t4 {
 			return true, zd, zn, zm, za, t1
+		}
+	}
+	return
+}
+
+func is_z_zz_z(args []string) (ok bool, zd, zn1, zn2, zm int, T string) {
+	if len(args) == 6 && args[1] == "{" && args[4] == "}" {
+		var t1, t2, t3, t4 string
+		zd, t1, _ = getZ(args[0])
+		zn1, t2, _ = getZ(args[2])
+		zn2, t3, _ = getZ(args[3])
+		zm, t4, _ = getZ(args[5])
+		if zd != -1 && zn1 != -1 && zn2 != -1 && zm != -1 && t1 == t2 && t2 == t3 && t3 == t4 {
+			return true, zd, zn1, zn2, zm, t1
 		}
 	}
 	return
