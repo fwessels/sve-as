@@ -828,6 +828,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		templ = strings.ReplaceAll(templ, "\t", "")
 		code, _ := strconv.ParseUint(templ, 2, 32)
 		return uint32(code), 0, nil
+	case "index":
+		if ok, zd, imm1, imm2, T := is_z_ii(args); ok && imm1 < 32 && imm2 < 32 {
+			templ := "0	0	0	0	0	1	0	0	size	1	imm5b	0	1	0	0	0	0	imm5	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "imm5b", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(imm2), 2)))
+			return assem_z_i(templ, zd, "imm5", int(imm1)), 0, nil
+		}
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)
@@ -1335,6 +1342,21 @@ func is_z_i(args []string) (ok bool, zd, imm int, T string) {
 	return
 }
 
+func is_z_ii(args []string) (ok bool, zd, imm1, imm2 int, T string) {
+	if len(args) == 3 {
+		var t1 string
+		zd, t1, _ = getZ(args[0])
+		if zd != -1 {
+			if ok, imm1 = getImm(args[1]); ok {
+				if ok, imm2 = getImm(args[2]); ok {
+					return true, zd, imm1, imm2, t1
+				}
+			}
+		}
+	}
+	return
+}
+
 func is_z_zimm(args []string) (ok bool, zd, zn, imm int, T string) {
 	if len(args) == 3 {
 		var t1, t2 string
@@ -1685,6 +1707,8 @@ func assem_z_i(template string, zd int, immPttrn string, imm int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
 	switch immPttrn {
+	case "imm5":
+		opcode = strings.ReplaceAll(opcode, "imm5", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(imm), 2)))
 	case "imm8":
 		opcode = strings.ReplaceAll(opcode, "imm8", fmt.Sprintf("%0*s", 8, strconv.FormatUint(uint64(imm), 2)))
 	case "imm13":
