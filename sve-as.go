@@ -220,18 +220,18 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_i(templ, rd, "immhi", imm>>2), 0, nil
 		}
 	case "ldr":
-		if ok, zt, xn, imm := is_z_bi(args); ok {
+		if ok, zt, xn, imm := is_z_bi(args); ok && -256 <= imm && imm < 256 {
 			templ := "1	0	0	0	0	1	0	1	1	0	imm9h	0	1	0	imm9l	Rn	Zt"
 			return assem_z_bi(templ, zt, xn, imm), 0, nil
-		} else if ok, pt, xn, imm := is_p_bi(args); ok {
+		} else if ok, pt, xn, imm := is_p_bi(args); ok && -256 <= imm && imm < 256 {
 			templ := "1	0	0	0	0	1	0	1	1	0	imm9h	0	0	0	imm9l	Rn	0	Pt"
 			return assem_p_bi(templ, pt, xn, imm), 0, nil
 		}
 	case "str":
-		if ok, zt, xn, imm := is_z_bi(args); ok {
+		if ok, zt, xn, imm := is_z_bi(args); ok && -256 <= imm && imm < 256 {
 			templ := "1	1	1	0	0	1	0	1	1	0	imm9h	0	1	0	imm9l	Rn	Zt"
 			return assem_z_bi(templ, zt, xn, imm), 0, nil
-		} else if ok, pt, xn, imm := is_p_bi(args); ok {
+		} else if ok, pt, xn, imm := is_p_bi(args); ok && -256 <= imm && imm < 256 {
 			templ := "1	1	1	0	0	1	0	1	1	0	imm9h	0	0	0	imm9l	Rn	0	Pt"
 			return assem_p_bi(templ, pt, xn, imm), 0, nil
 		} else if ok, rt, rn, imm12 := is_r_bi(args); ok {
