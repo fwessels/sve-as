@@ -737,6 +737,30 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
 			return assem_prefixed_z_p_z("", args[1], zd, pg, zn, T)
 		}
+	case "histcnt":
+		if ok, zd, pg, zn, zm, T := is_z_p_zz_4(args); ok && pg < 8 && (strings.ToLower(T) == "s" || strings.ToLower(T) == "d") {
+			templ := "0	1	0	0	0	1	0	1	size	1	Zm	1	1	0	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_zz_4(templ, zd, pg, zn, zm), 0, nil
+		}
+	case "histseg":
+		if ok, zd, zn, zm, T := is_z_zz(args); ok && strings.ToLower(T) == "b" {
+			templ := "0	1	0	0	0	1	0	1	size	1	Zm	1	0	1	0	0	0	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		}
+	case "match":
+		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
+			templ := "0	1	0	0	0	1	0	1	size	1	Zm	1	0	0	Pg	Zn	0	Pd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
+		}
+	case "nmatch":
+		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
+			templ := "0	1	0	0	0	1	0	1	size	1	Zm	1	0	0	Pg	Zn	1	Pd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
+		}
 	case "cmpeq":
 		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
 			templ := "0	0	1	0	0	1	0	0	size	0	Zm	1	0	1	Pg	Zn	0	Pd"
@@ -1964,10 +1988,14 @@ func assem_z_p_zz(template string, zda, pg, zn, zm int) uint32 {
 	}
 }
 
-func assem_z_p_zz_4(template string, zd, pv, zn, zm int) uint32 {
+func assem_z_p_zz_4(template string, zd, p, zn, zm int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
-	opcode = strings.ReplaceAll(opcode, "Pv", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pv), 2)))
+	if strings.Contains(opcode, "Pv") {
+		opcode = strings.ReplaceAll(opcode, "Pv", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(p), 2)))
+	} else {
+		opcode = strings.ReplaceAll(opcode, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(p), 2)))
+	}
 	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
