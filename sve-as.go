@@ -853,11 +853,31 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		code, _ := strconv.ParseUint(templ, 2, 32)
 		return uint32(code), 0, nil
 	case "index":
-		if ok, zd, imm1, imm2, T := is_z_ii(args); ok && imm1 < 32 && imm2 < 32 {
+		if ok, zd, imm1, imm2, T := is_z_ii(args); ok && -16 <= imm1 && imm1 < 16 && -16 <= imm2 && imm2 < 16 {
 			templ := "0	0	0	0	0	1	0	0	size	1	imm5b	0	1	0	0	0	0	imm5	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			if imm1 < 0 {
+				imm1 = (1 << 5) + imm1
+			}
+			if imm2 < 0 {
+				imm2 = (1 << 5) + imm2
+			}
 			templ = strings.ReplaceAll(templ, "imm5b", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(imm2), 2)))
-			return assem_z_i(templ, zd, "imm5", int(imm1)), 0, nil
+			return assem_z_i(templ, zd, "imm5", imm1), 0, nil
+		} else if ok, zd, imm, rm, T := is_z_ir(args); ok && -16 <= imm && imm < 16 {
+			templ := "0	0	0	0	0	1	0	0	size	1	Rm	0	1	0	0	1	0	imm5	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			if imm < 0 {
+				imm = (1 << 5) + imm
+			}
+			return assem_z_ir(templ, zd, "imm5", imm, rm), 0, nil
+		} else if ok, zd, rn, imm, T := is_z_ri(args); ok && -16 <= imm && imm < 16 {
+			templ := "0	0	0	0	0	1	0	0	size	1	imm5	0	1	0	0	0	1	Rn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			if imm < 0 {
+				imm = (1 << 5) + imm
+			}
+			return assem_z_ri(templ, zd, rn, "imm5", imm), 0, nil
 		}
 	}
 
@@ -938,7 +958,6 @@ func getImm(imm string) (bool, int) {
 			return true, int(num)
 		}
 	}
-	fmt.Printf("Invalid immediate: %s\n", imm)
 	return false, 0
 }
 
@@ -1433,6 +1452,32 @@ func is_z_r(args []string) (ok bool, zd, rn int, T string) {
 	return
 }
 
+func is_z_ir(args []string) (ok bool, zd, imm, rm int, T string) {
+	if len(args) == 3 {
+		zd, T, _ = getZ(args[0])
+		if ok, imm = getImm(args[1]); ok {
+			rm = getR(args[2])
+			if zd != -1 && rm != -1 {
+				return true, zd, imm, rm, T
+			}
+		}
+	}
+	return
+}
+
+func is_z_ri(args []string) (ok bool, zd, rn, imm int, T string) {
+	if len(args) == 3 {
+		zd, T, _ = getZ(args[0])
+		rn = getR(args[1])
+		if ok, imm = getImm(args[2]); ok {
+			if zd != -1 && rn != -1 {
+				return true, zd, rn, imm, T
+			}
+		}
+	}
+	return
+}
+
 func is_r_i(args []string) (ok bool, rd int, imm int) {
 	if len(args) == 2 {
 		rd = getR(args[0])
@@ -1737,6 +1782,42 @@ func assem_z_i(template string, zd int, immPttrn string, imm int) uint32 {
 		opcode = strings.ReplaceAll(opcode, "imm8", fmt.Sprintf("%0*s", 8, strconv.FormatUint(uint64(imm), 2)))
 	case "imm13":
 		opcode = strings.ReplaceAll(opcode, "imm13", fmt.Sprintf("%0*s", 13, strconv.FormatUint(uint64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z_ir(template string, zd int, immPttrn string, imm, rm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
+	switch immPttrn {
+	case "imm5":
+		opcode = strings.ReplaceAll(opcode, "imm5", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
+	opcode = strings.ReplaceAll(opcode, "Rm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rm), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z_ri(template string, zd, rn int, immPttrn string, imm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
+	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
+	switch immPttrn {
+	case "imm5":
+		opcode = strings.ReplaceAll(opcode, "imm5", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(imm), 2)))
 	default:
 		fmt.Println("Invalid immediate pattern: ", immPttrn)
 	}

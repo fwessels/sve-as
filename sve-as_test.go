@@ -197,6 +197,15 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x45016802 // pmullb z2.q, z0.d, z1.d"},
 		{"    WORD $0x45036c85 // pmullt z5.q, z4.d, z3.d"},
 		{"    WORD $0x0424400c // index z12.b, #0, #4"},
+		{"    WORD $0x042f420d // index z13.b, #-16, #15"},
+		{"    WORD $0x043041ee // index z14.b, #15, #-16"},
+		{"    WORD $0x0477496f // index z15.h, #11, w23"},
+		{"    WORD $0x04b849f0 // index z16.s, #15, w24"},
+		{"    WORD $0x04f94a11 // index z17.d, #-16, x25"},
+		{"    WORD $0x042f4752 // index z18.b, w26, #15"},
+		{"    WORD $0x04704773 // index z19.h, w27, #-16"},
+		{"    WORD $0x04b14794 // index z20.s, w28, #-15"},
+		{"    WORD $0x04ee47b5 // index z21.d, x29, #14"},
 	}
 
 	for i, tc := range testCases {
