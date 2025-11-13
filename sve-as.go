@@ -914,6 +914,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 			return assem_z_ri(templ, zd, rn, "imm5", imm), 0, nil
 		}
+	case "insr":
+		if ok, zdn, rm, T := is_z_r(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	0	0	1	0	0	0	0	1	1	1	0	Rm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+			templ = strings.ReplaceAll(templ, "Rm", "Rn")
+			return assem_z_r(templ, zdn, rm), 0, nil
+		}
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)
