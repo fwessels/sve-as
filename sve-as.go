@@ -218,6 +218,21 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Rm", "Rn")
 			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
 		}
+	case "cmp":
+		if ok, rd, imm, shift := is_r_i(args); ok && 0 <= imm && imm < 4096 && (shift == 0 || shift == 12) {
+			// CMP <Xn|SP>, #<imm>{, <shift>}
+			// is equivalent to
+			// SUBS XZR, <Xn|SP>, #<imm> {, <shift>}
+			templ := "sf	1	1	1	0	0	0	1	0	sh	imm12	Rn	1	1	1	1	1"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "Rn", "Rd")
+			if shift == 12 {
+				templ = strings.ReplaceAll(templ, "sh", "1") // LSL #12
+			} else {
+				templ = strings.ReplaceAll(templ, "sh", "0") // LSL #0
+			}
+			return assem_r_i(templ, rd, "imm12", imm), 0, nil
+		}
 	case "adr":
 		if ok, rd, imm := is_r_i(args); ok {
 			if imm < 0 {
