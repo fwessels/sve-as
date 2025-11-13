@@ -198,6 +198,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	1	1	Pv	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_zz_4(templ, zd, pg, zn, zd), 0, nil
+		} else if ok, rd, rn := is_r_r(args); ok {
+			// MOV <Xd>, <Xm>
+			// is equivalent to
+			// ORR <Xd>, XZR, <Xm>
+			templ := "sf	0	1	0	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	1	1	1	1	1	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "Rm", "Rn")
+			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
 		}
 	case "mvn":
 		if ok, rd, rn := is_r_r(args); ok {

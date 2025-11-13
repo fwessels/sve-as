@@ -42,6 +42,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04bf5050 // rdvl x16, #2"},
 		{"    WORD $0x9ac10800 // udiv x0, x0, x1"},
 		{"    WORD $0xd2800001 // mov x1, #0"},
+		{"    WORD $0xaa0103ea // mov x10, x1"},
 		{"    WORD $0xaa2003e0 // mvn x0, x0"},
 		{"    WORD $0xd503201f // nop"},
 		{"    WORD $0xd65f03c0 // ret"},
