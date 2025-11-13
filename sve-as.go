@@ -1377,7 +1377,7 @@ func is_z_i(args []string) (ok bool, zd, imm int, T string) {
 		var t1 string
 		zd, t1, _ = getZ(args[0])
 		if zd != -1 {
-			if ok, imm = getImm(args[1]); ok {
+			if ok, imm := getImm(args[1]); ok {
 				return true, zd, imm, t1
 			}
 		}
@@ -1390,8 +1390,8 @@ func is_z_ii(args []string) (ok bool, zd, imm1, imm2 int, T string) {
 		var t1 string
 		zd, t1, _ = getZ(args[0])
 		if zd != -1 {
-			if ok, imm1 = getImm(args[1]); ok {
-				if ok, imm2 = getImm(args[2]); ok {
+			if ok, imm1 := getImm(args[1]); ok {
+				if ok, imm2 := getImm(args[2]); ok {
 					return true, zd, imm1, imm2, t1
 				}
 			}
@@ -1406,7 +1406,7 @@ func is_z_zimm(args []string) (ok bool, zd, zn, imm int, T string) {
 		zd, t1, _ = getZ(args[0])
 		zn, t2, _ = getZ(args[1])
 		if zd != -1 && zn != -1 && t1 == t2 {
-			if ok, imm = getImm(args[2]); ok {
+			if ok, imm := getImm(args[2]); ok {
 				return true, zd, zn, imm, t1
 			}
 		}
@@ -1421,7 +1421,7 @@ func is_z_p_zimm(args []string) (ok bool, zd, pg, zn, imm int, T string) {
 		pg = getP(strings.Split(args[1], "/")[0]) // drop any trailer
 		zn, t2, _ = getZ(args[2])
 		if zd != -1 && pg != -1 && zn != -1 && t1 == t2 {
-			if ok, imm = getImm(args[3]); ok {
+			if ok, imm := getImm(args[3]); ok {
 				return true, zd, pg, zn, imm, t1
 			}
 		}
@@ -1455,7 +1455,7 @@ func is_z_r(args []string) (ok bool, zd, rn int, T string) {
 func is_z_ir(args []string) (ok bool, zd, imm, rm int, T string) {
 	if len(args) == 3 {
 		zd, T, _ = getZ(args[0])
-		if ok, imm = getImm(args[1]); ok {
+		if ok, imm := getImm(args[1]); ok {
 			rm = getR(args[2])
 			if zd != -1 && rm != -1 {
 				return true, zd, imm, rm, T
@@ -1469,7 +1469,7 @@ func is_z_ri(args []string) (ok bool, zd, rn, imm int, T string) {
 	if len(args) == 3 {
 		zd, T, _ = getZ(args[0])
 		rn = getR(args[1])
-		if ok, imm = getImm(args[2]); ok {
+		if ok, imm := getImm(args[2]); ok {
 			if zd != -1 && rn != -1 {
 				return true, zd, rn, imm, T
 			}
@@ -1481,7 +1481,7 @@ func is_z_ri(args []string) (ok bool, zd, rn, imm int, T string) {
 func is_r_i(args []string) (ok bool, rd int, imm int) {
 	if len(args) == 2 {
 		rd = getR(args[0])
-		if ok, imm = getImm(args[1]); ok {
+		if ok, imm := getImm(args[1]); ok {
 			return true, rd, imm
 		}
 	}
@@ -1542,7 +1542,7 @@ func is_z_bi(args []string) (ok bool, zt, xn, imm int) {
 			if len(mas) >= 1 {
 				xn = getR(mas[0])
 				if len(mas) == 3 && mas[2] == "MUL VL" {
-					if ok, imm = getImm(mas[1]); ok && xn != -1 {
+					if ok, imm := getImm(mas[1]); ok && xn != -1 {
 						return true, zt, xn, imm
 					}
 				} else if len(mas) == 1 && xn != -1 {
@@ -1564,7 +1564,7 @@ func is_p_bi(args []string) (ok bool, pt, xn, imm int) {
 			if len(mas) >= 1 {
 				xn = getR(mas[0])
 				if len(mas) == 3 && mas[2] == "MUL VL" {
-					if ok, imm = getImm(mas[1]); ok && xn != -1 {
+					if ok, imm := getImm(mas[1]); ok && xn != -1 {
 						return true, pt, xn, imm
 					}
 				} else if xn != -1 {
