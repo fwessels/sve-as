@@ -721,10 +721,25 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "sf	1	0	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), 0, nil
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok {
+			templ := "sf	1	0	0	1	0	1	1	shift	0	Rm	imm6	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		} else if ok, zd, zn, zm, T := is_z_zz(args); ok {
 			templ := "0	0	0	0	0	1	0	0	size	1	Zm	0	0	0	0	0	1	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		} else if ok, zd, zn, imm, shift, T := is_z_zi(args); ok && imm < 256 {
+			if zd != zn {
+				return assem_prefixed_z_z(ins, zd, zn)
+			} else {
+				templ := "0	0	1	0	0	1	0	1	size	1	0	0	0	0	1	1	1	sh	imm8	Zdn"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				templ = strings.ReplaceAll(templ, "sh", strconv.Itoa(shift))
+				templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+				return assem_z_i(templ, zd, "imm8", imm), 0, nil
+			}
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	0	0	0	1	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
