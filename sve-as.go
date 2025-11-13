@@ -283,6 +283,18 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ := "1	0	0	0	0	1	0	1	0	xs	0	Zm	0	1	0	Pg	Rn	Zt"
 				return assem_z_p_bz(templ, zt, pg, rn, zm, xs), 0, nil
 			}
+		} else if ok, zt, pg, rn, rm, shift, T := is_z_p_rr(args); ok && shift == 2 {
+			var templ string
+			if strings.ToLower(T) == "s" {
+				templ = "1	0	1	0	0	1	0	1	0	1	0	Rm	0	1	0	Pg	Rn	Zt"
+			}
+			if strings.ToLower(T) == "d" {
+				templ = "1	0	1	0	0	1	0	1	0	1	1	Rm	0	1	0	Pg	Rn	Zt"
+			}
+			if strings.ToLower(T) == "q" {
+				templ = "1	0	1	0	0	1	0	1	0	0	0	Rm	1	0	0	Pg	Rn	Zt"
+			}
+			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 		}
 	case "ld1rw":
 		if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok {

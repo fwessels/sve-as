@@ -178,6 +178,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x05b441ef // rev   p15.s, p15.s"},
 		{"    WORD $0x258554a6 // mov   p6.b, p5.b"},
 		{"    WORD $0x855c5482 // ld1w  { z2.s }, p5/z, [x4, z28.s, sxtw]"},
+		{"    WORD $0xa54b4450 // ld1w  { z16.s }, p1/z, [x2, x11, lsl #2]"},
 		{"    WORD $0x8540de9b // ld1rw { z27.s }, p7/z, [x20]"},
 		{"    WORD $0x84cb594a // ld1h  { z10.s }, p6/z, [x10, z11.s, sxtw]"},
 		{"    WORD $0x84155e94 // ld1b  { z20.s }, p7/z, [x20, z21.s, uxtw]"},
