@@ -193,7 +193,8 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_r(templ, zd, rn), 0, nil
-		} else if ok, rd, imm := is_r_i(args); ok {
+		} else if ok, rd, imm, shift := is_r_i(args); ok {
+			_ = shift
 			// Using MOV (wide immediate) here (which is an alias for MOVZ)
 			templ := "sf	1	0	1	0	0	1	0	1	hw	imm16	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
@@ -243,7 +244,8 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_i(templ, rd, "imm12", imm), 0, nil
 		}
 	case "adr":
-		if ok, rd, imm := is_r_i(args); ok {
+		if ok, rd, imm, shift := is_r_i(args); ok {
+			_ = shift
 			if imm < 0 {
 				imm = (1 << 21) + imm
 			}
@@ -421,7 +423,8 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "rdvl":
-		if ok, rd, imm := is_r_i(args); ok {
+		if ok, rd, imm, shift := is_r_i(args); ok {
+			_ = shift
 			templ := "0	0	0	0	0	1	0	0	1	0	1	1	1	1	1	1	0	1	0	1	0	imm6	Rd"
 			return assem_r_i(templ, rd, "imm6", imm), 0, nil
 		}
@@ -1545,11 +1548,19 @@ func is_z_ri(args []string) (ok bool, zd, rn, imm int, T string) {
 	return
 }
 
-func is_r_i(args []string) (ok bool, rd int, imm int) {
-	if len(args) == 2 {
+func is_r_i(args []string) (ok bool, rd int, imm, shift int) {
+	if len(args) == 2 || len(args) == 4 {
 		rd = getR(args[0])
 		if ok, imm := getImm(args[1]); ok {
-			return true, rd, imm
+			if len(args) == 4 && args[2] == "lsl" {
+				if ok, sh := getImm(args[3]); ok {
+					if sh == 0 || sh == 12 {
+						return true, rd, imm, sh
+					}
+				}
+			} else {
+				return true, rd, imm, 0
+			}
 		}
 	}
 	return
@@ -1774,6 +1785,8 @@ func assem_r_ri(template string, rd, rn int, immPttrn string, imm, shift int) ui
 		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
 	case "imm12":
 		opcode = strings.ReplaceAll(opcode, "imm12", fmt.Sprintf("%0*s", 12, strconv.FormatInt(int64(imm), 2)))
+	case "imm13":
+		opcode = strings.ReplaceAll(opcode, "imm13", fmt.Sprintf("%0*s", 13, strconv.FormatInt(int64(imm), 2)))
 	case "immr":
 		opcode = strings.ReplaceAll(opcode, "immr", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imm), 2)))
 	default:
@@ -1954,6 +1967,8 @@ func assem_r_i(template string, rd int, immPttrn string, imm int) uint32 {
 	switch immPttrn {
 	case "imm6":
 		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
+	case "imm12":
+		opcode = strings.ReplaceAll(opcode, "imm12", fmt.Sprintf("%0*s", 12, strconv.FormatUint(uint64(imm), 2)))
 	case "imm16":
 		opcode = strings.ReplaceAll(opcode, "imm16", fmt.Sprintf("%0*s", 16, strconv.FormatUint(uint64(imm), 2)))
 	case "immhi":
