@@ -282,7 +282,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 		}
 	case "st1b":
-		if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok {
+		if ok, zt, pg, rn, zm, xs, T := is_z_p_bz(args); ok {
+			if T == "s" {
+				templ := "1	1	1	0	0	1	0	0	0	1	0	Zm	1	xs	0	Pg	Rn	Zt"
+				return assem_z_p_bz(templ, zt, pg, rn, zm, xs), 0, nil
+			}
+		} else if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok {
 			templ := "1	1	1	0	0	1	0	0	0	size	0	imm4	1	1	1	Pg	Rn	Zt"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
@@ -293,7 +298,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 		}
 	case "st1w":
-		if ok, zt, pg, rn, rm, shift, T := is_z_p_rr(args); ok && shift == 2 {
+		if ok, zt, pg, rn, zm, xs, T := is_z_p_bz(args); ok {
+			if T == "s" {
+				templ := "1	1	1	0	0	1	0	1	0	1	0	Zm	1	xs	0	Pg	Rn	Zt"
+				return assem_z_p_bz(templ, zt, pg, rn, zm, xs), 0, nil
+			}
+		} else if ok, zt, pg, rn, rm, shift, T := is_z_p_rr(args); ok && shift == 2 {
 			templ := "1	1	1	0	0	1	0	1	0	1	sz	Rm	0	1	0	Pg	Rn	Zt"
 			if strings.ToLower(T) == "s" {
 				templ = strings.ReplaceAll(templ, "sz", "0")
@@ -302,6 +312,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ = strings.ReplaceAll(templ, "sz", "1")
 			}
 			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
+		}
+	case "st1h":
+		if ok, zt, pg, rn, zm, xs, T := is_z_p_bz(args); ok {
+			if T == "s" {
+				templ := "1	1	1	0	0	1	0	0	1	1	0	Zm	1	xs	0	Pg	Rn	Zt"
+				return assem_z_p_bz(templ, zt, pg, rn, zm, xs), 0, nil
+			}
 		}
 	case "ld1w":
 		if ok, zt, pg, rn, zm, xs, T := is_z_p_bz(args); ok {
