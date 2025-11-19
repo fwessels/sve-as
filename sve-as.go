@@ -121,6 +121,17 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_r_ri(templ, rd, rn, "imm13", int(imm13), 0), 0, nil
 			}
 		}
+	case "ands":
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
+			_ = shift // fix
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "sf	1	1	1	0	0	1	0	0	N	immr	imms	Rn	Rd"
+				templ = strings.ReplaceAll(templ, "sf", "1")
+				templ = strings.ReplaceAll(templ, "N	immr	imms", "imm13")
+				imm13 := getImm13(imms, immr, "d")
+				return assem_r_ri(templ, rd, rn, "imm13", int(imm13), 0), 0, nil
+			}
+		}
 	case "eor":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
 			return assem_z_zz("0	0	0	0	0	1	0	0	1	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), 0, nil

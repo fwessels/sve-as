@@ -60,6 +60,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xf9000041 // str x1, [x2]"},
 		{"    WORD $0xf900068a // str x10, [x20, #8]"},
 		{"    WORD $0x924007ad // and x13, x29, #3"},
+		{"    WORD $0xf2400b8e // ands x14, x28, #7"},
 		//
 		// vector instructions
 		{"    WORD $0x05e039e2 // mov z2.d, x15"},
