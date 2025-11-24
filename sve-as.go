@@ -977,6 +977,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Rm", "Rn")
 			return assem_z_r(templ, zdn, rm), 0, nil
 		}
+	case "csel":
+		if ok, rd, rn, rm, cond := is_r_rr_cond(args); ok {
+			_ = cond
+			templ := "sf	0	0	1	1	0	1	0	1	0	0	Rm	cond	0	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "cond", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(cond), 2)))
+
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)
@@ -995,6 +1004,45 @@ func getR(r string) int {
 		}
 	}
 	return -1
+}
+
+func getCond(cond string) int {
+	switch strings.ToLower(cond) {
+	case "eq":
+		return 0
+	case "ne":
+		return 1
+	case "cs":
+		return 2
+	case "cc":
+		return 3
+	case "mi":
+		return 4
+	case "pl":
+		return 5
+	case "vs":
+		return 6
+	case "vc":
+		return 7
+	case "hi":
+		return 8
+	case "ls":
+		return 9
+	case "ge":
+		return 10
+	case "lt":
+		return 11
+	case "gt":
+		return 12
+	case "le":
+		return 13
+	case "al":
+		return 14
+	case "nv":
+		return 15
+	default:
+		return -1
+	}
 }
 
 func getP(r string) int {
@@ -1209,6 +1257,17 @@ func is_r_rr(args []string) (ok bool, rd, rn, rm, shift, imm int) {
 		shift = getShift(args[3])
 		ok, imm = getImm(args[4])
 		return
+	}
+	return
+}
+
+func is_r_rr_cond(args []string) (ok bool, rd, rn, rm, cond int) {
+	if len(args) == 4 {
+		rd, rn, rm = getR(args[0]), getR(args[1]), getR(args[2])
+		cond = getCond(args[3])
+		if rd != -1 && rn != -1 && rm != -1 && cond != -1 {
+			return true, rd, rn, rm, cond
+		}
 	}
 	return
 }

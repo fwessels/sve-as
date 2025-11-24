@@ -61,6 +61,22 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xf900068a // str x10, [x20, #8]"},
 		{"    WORD $0x924007ad // and x13, x29, #3"},
 		{"    WORD $0xf2400b8e // ands x14, x28, #7"},
+		{"    WORD $0x9a830041 // csel x1, x2, x3, eq"}, // eq = none
+		{"    WORD $0x9a831041 // csel x1, x2, x3, ne"}, // ne = any
+		{"    WORD $0x9a832041 // csel x1, x2, x3, cs"}, // cs = hs, nlast
+		{"    WORD $0x9a833041 // csel x1, x2, x3, cc"}, // cc = lo, ul, last
+		{"    WORD $0x9a834041 // csel x1, x2, x3, mi"}, // mi = first
+		{"    WORD $0x9a835041 // csel x1, x2, x3, pl"}, // pl = nfrst
+		{"    WORD $0x9a836041 // csel x1, x2, x3, vs"},
+		{"    WORD $0x9a837041 // csel x1, x2, x3, vc"},
+		{"    WORD $0x9a838041 // csel x1, x2, x3, hi"}, // hi = pmore
+		{"    WORD $0x9a839041 // csel x1, x2, x3, ls"}, // ls = plast
+		{"    WORD $0x9a83a041 // csel x1, x2, x3, ge"}, // ge = tcont
+		{"    WORD $0x9a83b041 // csel x1, x2, x3, lt"}, // lt = tstop
+		{"    WORD $0x9a83c041 // csel x1, x2, x3, gt"},
+		{"    WORD $0x9a83d041 // csel x1, x2, x3, le"},
+		{"    WORD $0x9a83e041 // csel x1, x2, x3, al"},
+		{"    WORD $0x9a83f041 // csel x1, x2, x3, nv"},
 		//
 		// vector instructions
 		{"    WORD $0x05e039e2 // mov z2.d, x15"},
