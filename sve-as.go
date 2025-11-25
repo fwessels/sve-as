@@ -85,6 +85,30 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	1	0	0	0	Rm	0	Ra	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			ra := 31
+			return assem_r_rrr(templ, rd, rn, rm, ra), 0, nil
+		}
+	case "madd":
+		if ok, rd, rn, rm, ra := is_r_rrr(args); ok {
+			templ := "sf	0	0	1	1	0	1	1	0	0	0	Rm	0	Ra	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_rrr(templ, rd, rn, rm, ra), 0, nil
+		}
+	case "msub":
+		if ok, rd, rn, rm, ra := is_r_rrr(args); ok {
+			templ := "sf	0	0	1	1	0	1	1	0	0	0	Rm	1	Ra	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_rrr(templ, rd, rn, rm, ra), 0, nil
+		}
+	case "mneg":
+		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	1	0	0	0	Rm	1	Ra	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			ra := 31
+			return assem_r_rrr(templ, rd, rn, rm, ra), 0, nil
 		}
 	case "tst":
 		if ok, rn, rm := is_rr(args); ok {
@@ -1272,6 +1296,16 @@ func is_r_rr_cond(args []string) (ok bool, rd, rn, rm, cond int) {
 	return
 }
 
+func is_r_rrr(args []string) (ok bool, rd, rn, rm, ra int) {
+	if len(args) == 4 {
+		rd, rn, rm, ra = getR(args[0]), getR(args[1]), getR(args[2]), getR(args[3])
+		if rd != -1 && rn != -1 && rm != -1 && ra != -1 {
+			return true, rd, rn, rm, ra
+		}
+	}
+	return
+}
+
 func is_r_r(args []string) (ok bool, rd, rn int) {
 	if len(args) >= 2 {
 		rd, rn = getR(args[0]), getR(args[1])
@@ -1880,6 +1914,20 @@ func assem_r_ri(template string, rd, rn int, immPttrn string, imm, shift int) ui
 		fmt.Println("Invalid immediate pattern: ", immPttrn)
 	}
 	opcode = strings.ReplaceAll(opcode, "sh", fmt.Sprintf("%0*s", 1, strconv.FormatInt(int64(shift), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_r_rrr(template string, rd, rn, rm, ra int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Rd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rd), 2)))
+	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Rm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rm), 2)))
+	opcode = strings.ReplaceAll(opcode, "Ra", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(ra), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)

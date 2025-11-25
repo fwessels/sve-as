@@ -77,6 +77,10 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x9a83d041 // csel x1, x2, x3, le"},
 		{"    WORD $0x9a83e041 // csel x1, x2, x3, al"},
 		{"    WORD $0x9a83f041 // csel x1, x2, x3, nv"},
+		{"    WORD $0x9b020c20 // madd x0, x1, x2, x3"},
+		{"    WORD $0x9b027c20 // mul x0, x1, x2"},
+		{"    WORD $0x9b0cb56a // msub x10, x11, x12, x13"},
+		{"    WORD $0x9b0cfd6a // mneg x10, x11, x12"},
 		//
 		// vector instructions
 		{"    WORD $0x05e039e2 // mov z2.d, x15"},
