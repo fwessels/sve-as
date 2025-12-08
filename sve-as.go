@@ -79,7 +79,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_ri(templ, rd, rn, "imm6", imm, shift), 0, nil
 		}
 	case "mul":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
+		if ok, zd, zn, zm, T := is_z_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	1	Zm	0	1	1	0	0	0	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	0	0	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
@@ -601,6 +605,21 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			if zd == zn {
 				return assem_z2_zz(templ, zd, zm, za), 0, nil
 			}
+		}
+	case "mad":
+		if ok, zdn, pg, zm, za, T := is_z2_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	Zm	1	1	0	Pg	Za	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_zz(templ, zdn, pg, zm, za), 0, nil
+		}
+	case "mls":
+		if ok, zda, pg, zn, zm, T := is_z2_p_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	0	Zm	0	1	1	Pg	Zn	Zda"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Zda", "Zdn")
+			templ = strings.ReplaceAll(templ, "Zm", "Za")
+			templ = strings.ReplaceAll(templ, "Zn", "Zm")
+			return assem_z2_p_zz(templ, zda, pg, zn, zm), 0, nil
 		}
 	case "compact":
 		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
@@ -1537,6 +1556,20 @@ func is_z_p_zz(args []string) (ok bool, zdn, pg, zm int, T string) {
 
 		if zdn == zn && zdn != -1 && zn != -1 && zm != -1 && pg != -1 && t1 == t2 && t2 == t3 {
 			return true, zdn, pg, zm, t1
+		}
+	}
+	return
+}
+
+func is_z2_p_zz(args []string) (ok bool, zdn, pg, zm, za int, T string) {
+	if len(args) == 4 {
+		var t1, t2, t3 string
+		zdn, t1, _ = getZ(args[0])
+		pg = getP(strings.Split(args[1], "/")[0]) // drop any trailer
+		zm, t2, _ = getZ(args[2])
+		za, t3, _ = getZ(args[3])
+		if zdn != -1 && zm != -1 && za != -1 && pg != -1 && t1 == t2 && t2 == t3 {
+			return true, zdn, pg, zm, za, t1
 		}
 	}
 	return
