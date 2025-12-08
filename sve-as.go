@@ -2104,6 +2104,20 @@ func assem_z2_zz(template string, zdn, zm, zk int) uint32 {
 	}
 }
 
+func assem_z2_p_zz(template string, zdn, pg, zm, za int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(pg), 2)))
+	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
+	opcode = strings.ReplaceAll(opcode, "Za", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(za), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
 func assem_z_zz2(template string, zda, zn, zm int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zda", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zda), 2)))
