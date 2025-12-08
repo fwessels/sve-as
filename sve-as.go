@@ -849,13 +849,38 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
+	case "sdiv":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
+			if strings.ToLower(T) == "d" || strings.ToLower(T) == "s" {
+				// sdiv only defined for 64- and 32-bit
+				templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	0	0	0	0	0	Pg	Zm	Zdn"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+			}
+		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
+			if strings.ToLower(T) == "d" || strings.ToLower(T) == "s" {
+				// sdiv only defined for 64- and 32-bit
+				return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+			}
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	0	0	1	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
 	case "sdivr":
 		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
-			templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	1	0	0	0	0	Pg	Zm	Zdn"
-			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+			if strings.ToLower(T) == "d" || strings.ToLower(T) == "s" {
+				// sdivr only defined for 64- and 32-bit
+				templ := "0	0	0	0	0	1	0	0	size	0	1	0	1	1	0	0	0	0	Pg	Zm	Zdn"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+			}
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
-			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+			if strings.ToLower(T) == "d" || strings.ToLower(T) == "s" {
+				// sdivr only defined for 64- and 32-bit
+				return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+			}
 		}
 	case "smin":
 		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
