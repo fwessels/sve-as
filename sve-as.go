@@ -295,6 +295,30 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, pt, xn, imm := is_p_bi(args); ok && -256 <= imm && imm < 256 {
 			templ := "1	0	0	0	0	1	0	1	1	0	imm9h	0	0	0	imm9l	Rn	0	Pt"
 			return assem_p_bi(templ, pt, xn, imm), 0, nil
+		} else if ok, rt, rn, rm, option, amount := is_r_br(args); ok {
+			if option == 3 {
+				templ := "1	x	1	1	1	0	0	0	0	1	1	Rm	option	S	1	0	Rn	Rt"
+				templ = strings.ReplaceAll(templ, "x", "1")
+				templ = strings.ReplaceAll(templ, "Rt", "Rd")
+				templ = strings.ReplaceAll(templ, "option", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(option), 2)))
+				s := -1
+				if amount == 0 {
+					s = 0
+				} else if amount == 3 {
+					s = 1
+				}
+				if s != -1 {
+					templ = strings.ReplaceAll(templ, "S", fmt.Sprintf("%0*s", 1, strconv.FormatUint(uint64(s), 2)))
+					return assem_r_rr(templ, rt, rn, rm, "", 0), 0, nil
+				}
+			}
+		} else if ok, rt, rn, imm12 := is_r_bi(args); ok {
+			if imm12&7 == 0 {
+				templ := "1	x	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
+				templ = strings.ReplaceAll(templ, "Rt", "Rd")
+				templ = strings.ReplaceAll(templ, "x", "1")
+				return assem_r_ri(templ, rt, rn, "imm12", imm12/8, 0), 0, nil
+			}
 		}
 	case "str":
 		if ok, zt, xn, imm := is_z_bi(args); ok && -256 <= imm && imm < 256 {
@@ -303,6 +327,23 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, pt, xn, imm := is_p_bi(args); ok && -256 <= imm && imm < 256 {
 			templ := "1	1	1	0	0	1	0	1	1	0	imm9h	0	0	0	imm9l	Rn	0	Pt"
 			return assem_p_bi(templ, pt, xn, imm), 0, nil
+		} else if ok, rt, rn, rm, option, amount := is_r_br(args); ok {
+			if option == 3 {
+				templ := "1	x	1	1	1	0	0	0	0	0	1	Rm	option	S	1	0	Rn	Rt"
+				templ = strings.ReplaceAll(templ, "x", "1")
+				templ = strings.ReplaceAll(templ, "Rt", "Rd")
+				templ = strings.ReplaceAll(templ, "option", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(option), 2)))
+				s := -1
+				if amount == 0 {
+					s = 0
+				} else if amount == 3 {
+					s = 1
+				}
+				if s != -1 {
+					templ = strings.ReplaceAll(templ, "S", fmt.Sprintf("%0*s", 1, strconv.FormatUint(uint64(s), 2)))
+					return assem_r_rr(templ, rt, rn, rm, "", 0), 0, nil
+				}
+			}
 		} else if ok, rt, rn, imm12 := is_r_bi(args); ok {
 			if imm12&7 == 0 {
 				templ := "1	x	1	1	1	0	0	1	0	0	imm12	Rn	Rt"
