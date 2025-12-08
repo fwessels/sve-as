@@ -1763,6 +1763,35 @@ func getMemAddrImm(args []string) (xn, imm int) {
 	return -1, 0
 }
 
+func getMemAddrRegister(args []string) (rn, rm, option, amount int) {
+	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+		memaddr := strings.Join(args[0:], ", ")
+		memaddr = strings.NewReplacer("[", "", "]", "").Replace(memaddr)
+		mas := strings.Split(memaddr, ", ")
+		if len(mas) >= 2 {
+			rn = getR(mas[0])
+			if rn != -1 {
+				rm = getR(mas[1])
+				if rm != -1 {
+					mas = mas[2:]
+					if len(mas) == 2 && strings.ToLower(mas[0]) == "lsl" {
+						if ok, imm := getImm(mas[1]); ok {
+							// option	<extend>
+							// 010	UXTW
+							// 011	LSL
+							// 110	SXTW
+							// 111	SXTX
+							option, amount = 0b011, imm
+							return rn, rm, option, amount
+						}
+					}
+				}
+			}
+		}
+	}
+	return -1, -1, -1, -1
+}
+
 func getMemAddrVectored(args []string) (rn, zm, xs int, T string) {
 	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 		memaddr := strings.Join(args[0:], ", ")
