@@ -498,7 +498,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		} else if ok, zd, pg, zn, imm, T := is_z_p_zimm(args); ok && imm > 0 {
 			templ := "0	0	0	0	0	1	0	0	tszh	0	0	0	0	0	1	1	0	0	Pg	tszl	imm3	Zdn"
-			imm3, tsz := computeShiftSpecifier(uint(imm), T)
+			imm3, tsz := computeShiftSpecifier(uint(imm), true, T)
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
 			if zd == zn {
@@ -509,7 +509,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		} else if ok, zd, zn, imm, T := is_z_zimm(args); ok && imm > 0 {
 			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	1	0	0	1	0	1	Zn	Zd"
-			imm3, tsz := computeShiftSpecifier(uint(imm), T)
+			imm3, tsz := computeShiftSpecifier(uint(imm), true, T)
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
 			return assem_z_zi(templ, zd, zn, "imm3", imm3), 0, nil
@@ -533,6 +533,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		} else if ok, zd, zn, imm, T := is_z_zimm(args); ok {
+			imm3, tsz := computeShiftSpecifier(uint(imm), false, T)
+			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	1	0	0	1	1	1	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
+			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
+			return assem_z_zi(templ, zd, zn, "imm3", imm3), 0, nil
 		}
 	case "rdvl":
 		if ok, rd, imm, shift := is_r_i(args); ok {
@@ -720,14 +726,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		}
 	case "asr":
 		if ok, zd, zn, imm, T := is_z_zimm(args); ok {
-			tsz := getTypeSpecifier(T)[1:] // Drop the MSB bit for Q
-			if strings.ToUpper(T) == "S" {
-				tsz = tsz[:2] + "11" // Set x bit for compatibility with 'as'
-			}
 			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	1	0	0	1	0	0	Zn	Zd"
+			imm3, tsz := computeShiftSpecifier(uint(imm), true, T)
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
-			return assem_z_zi(templ, zd, zn, "imm3", imm), 0, nil
+			return assem_z_zi(templ, zd, zn, "imm3", imm3), 0, nil
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	0	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -1295,30 +1298,38 @@ func getShift(in string) int {
 	}
 }
 
-func computeShiftSpecifier(imm uint, T string) (int, string) {
+func computeShiftSpecifier(imm uint, reverse bool, T string) (int, string) {
 	switch strings.ToUpper(T) {
 	case "B":
 		const esize = 8
 		if imm < esize {
-			imm = esize - imm
+			if reverse {
+				imm = esize - imm
+			}
 			return int(imm), "0001"
 		}
 	case "H":
 		const esize = 16
 		if imm < esize {
-			imm = esize - imm
+			if reverse {
+				imm = esize - imm
+			}
 			return int(imm & 7), fmt.Sprintf("001%01b", imm>>3)
 		}
 	case "S":
 		const esize = 32
 		if imm < esize {
-			imm = esize - imm
+			if reverse {
+				imm = esize - imm
+			}
 			return int(imm & 7), fmt.Sprintf("01%02b", imm>>3)
 		}
 	case "D":
 		const esize = 64
 		if imm < esize {
-			imm = esize - imm
+			if reverse {
+				imm = esize - imm
+			}
 			return int(imm & 7), fmt.Sprintf("1%03b", imm>>3)
 		}
 	}
