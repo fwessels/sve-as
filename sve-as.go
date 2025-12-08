@@ -1384,6 +1384,18 @@ func is_r_bi(args []string) (ok bool, rt, xn, imm int) {
 	return
 }
 
+func is_r_br(args []string) (ok bool, rt, rn, rm, option, amount int) {
+	if len(args) >= 2 {
+		rt = getR(args[0])
+		if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+			if rn, rm, option, amount = getMemAddrRegister(args[1:]); rn != -1 && rm != -1 {
+				return true, rt, rn, rm, option, amount
+			}
+		}
+	}
+	return
+}
+
 func is_z_z(args []string) (ok bool, zd, zn int, T string) {
 	if len(args) == 2 {
 		var t1, t2 string
