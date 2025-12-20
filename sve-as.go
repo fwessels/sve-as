@@ -1406,6 +1406,19 @@ func is_p(args []string) (ok bool, pd int, T string) {
 	return false, -1, ""
 }
 
+func is_ri(args []string) (ok bool, rn, imm int) {
+	if len(args) == 2 {
+		rn = getR(args[0])
+		if rn != -1 {
+			ok, imm := getImm(args[1])
+			if ok {
+				return true, rn, imm
+			}
+		}
+	}
+	return
+}
+
 func is_rr(args []string) (ok bool, rn, rm int) {
 	if len(args) == 2 {
 		rn, rm = getR(args[0]), getR(args[1])
@@ -2105,6 +2118,24 @@ func assem_r_rr(template string, rd, rn, rm int, immPttrn string, imm int) uint3
 	default:
 		fmt.Println("Invalid immediate pattern: ", immPttrn)
 	}
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_ri(template string, rn int, immPttrn string, imm, shift int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
+	switch immPttrn {
+	case "imm13":
+		opcode = strings.ReplaceAll(opcode, "imm13", fmt.Sprintf("%0*s", 13, strconv.FormatInt(int64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
+	opcode = strings.ReplaceAll(opcode, "sh", fmt.Sprintf("%0*s", 1, strconv.FormatInt(int64(shift), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)
