@@ -122,6 +122,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "shift", "0\t0")
 			rd := getR("xzr")
 			return assem_r_rr(templ, rd, rn, rm, "imm6", 0), 0, nil
+		} else if ok, rn, imm := is_ri(args); ok {
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "sf	1	1	1	0	0	1	0	0	N	immr	imms	Rn	1	1	1	1	1"
+				templ = strings.ReplaceAll(templ, "sf", "1")
+				templ = strings.ReplaceAll(templ, "N	immr	imms", "imm13")
+				imm13 := getImm13(imms, immr, "d")
+				return assem_ri(templ, rn, "imm13", int(imm13), 0), 0, nil
+			}
 		}
 	case "and":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
