@@ -725,7 +725,17 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "asr":
-		if ok, zd, zn, imm, T := is_z_zimm(args); ok {
+		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
+			templ := "sf	0	0	1	0	0	1	1	0	N	immr	x	1	1	1	1	1	Rn	Rd"
+			// see https://docsmirror.github.io/A64/2023-06/asr_sbfm.html
+			// ASR <Xd>, <Xn>, #<shift>
+			// is equivalent to
+			// SBFM <Xd>, <Xn>, #<shift>, #63
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			templ = strings.ReplaceAll(templ, "x", "1") // x bit is set for compat with 'as'
+			return assem_r_ri(templ, rd, rn, "immr", imm, 0), 0, nil
+		} else if ok, zd, zn, imm, T := is_z_zimm(args); ok {
 			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	1	0	0	1	0	0	Zn	Zd"
 			imm3, tsz := computeShiftSpecifier(uint(imm), true, T)
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])

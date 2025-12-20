@@ -38,6 +38,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xcb050129 // sub x9, x9, x5"},
 		{"    WORD $0xd346fc00 // lsr x0, x0, #6"},
 		{"    WORD $0xd37ae400 // lsl x0, x0, #6"},
+		{"    WORD $0x9343fc41 // asr x1, x2, #3"},
 		{"    WORD $0xf10008df // cmp x6, #2"},
 		{"    WORD $0xf11348ff // cmp x7, #1234"},
 		{"    WORD $0xf11348ff // cmp x7, #1234, lsl #0"},
