@@ -44,7 +44,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	0	size	1	Zm	0	0	0	0	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
-		} else if ok, zd, zn, imm, shift, T := is_z_zi(args); ok {
+		} else if ok, zd, zn, imm, shift, T := is_z_zi(args); ok && imm < 256 {
 			if zd != zn {
 				return assem_prefixed_z_z(ins, zd, zn)
 			} else {
@@ -74,7 +74,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), 0, nil
 		}
 	case "addvl":
-		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && -32 <= imm && imm <= 31 {
+			if imm < 0 {
+				imm = (1 << 6) + imm
+			}
 			templ := "0	0	0	0	0	1	0	0	0	0	1	Rn	0	1	0	1	0	imm6	Rd"
 			return assem_r_ri(templ, rd, rn, "imm6", imm, shift), 0, nil
 		}
