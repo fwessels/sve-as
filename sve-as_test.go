@@ -148,7 +148,6 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x6594a231 // scvtf z17.s, p0/m, z17.s"},
 		{"    WORD $0x65b2023f // fmla z31.s, p0/M, z17.s, z18.s"},
 		{"    WORD $0x2538c1e0 // dup z0.b, #15"},
-		{"    WORD $0x0978c015 // dup z21, #0"},
 		{"    WORD $0x2538de20 // dup z0.b, #-15"},
 		{"    WORD $0x25b8f016 // dup z22.s,  #-32768"},
 		{"    WORD $0x25b8eff6 // dup z22.s,  #0x7f00"},

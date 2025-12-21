@@ -211,7 +211,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	imm2	1	tsz	0	0	1	0	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "tsz", getTypeSpecifier(T))
 			return assem_z_zi(templ, zd, zn, "imm2", imm), 0, nil
-		} else if ok, zd, imm, T := is_z_i(args); ok {
+		} else if ok, zd, imm, T := is_z_i(args); ok && T != "" {
 			templ := "0	0	1	0	0	1	0	1	size	1	1	1	0	0	0	1	1	sh	imm8	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			sh := ""
