@@ -231,6 +231,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ = strings.ReplaceAll(templ, "sh", sh)
 				return assem_z_i(templ, zd, "imm8", imm), 0, nil
 			}
+		} else if ok, zd, rn, T := is_z_r(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_r(templ, zd, rn), 0, nil
 		}
 	case "mov":
 		if ok, pd, pn, T := is_p_p(args); ok && strings.ToLower(T) == "b" {
