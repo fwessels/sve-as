@@ -76,6 +76,10 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x784ffce3 // ldrh x3, [x7, #255]!"},
 		{"    WORD $0x797ffd04 // ldrh x4, [x8, #8190]"},
 		{"    WORD $0x924007ad // and x13, x29, #3"},
+		{"    WORD $0xaa060be9 // orr x9, xzr, x6, lsl #2"},
+		{"    WORD $0xaa0603e9 // orr x9, xzr, x6, lsl #0"},
+		{"    WORD $0xaa0603e9 // orr x9, xzr, x6"},
+		{"    WORD $0xaa0603e9 // mov x9, x6"}, // alias of above
 		{"    WORD $0xf2400b8e // ands x14, x28, #7"},
 		{"    WORD $0x9a830041 // csel x1, x2, x3, eq"}, // eq = none
 		{"    WORD $0x9a831041 // csel x1, x2, x3, ne"}, // ne = any

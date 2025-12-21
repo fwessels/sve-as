@@ -262,7 +262,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	1	1	Pv	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_zz_4(templ, zd, pg, zn, zd), 0, nil
-		} else if ok, rd, rn := is_r_r(args); ok {
+		} else if ok, rd, rn := is_r_r(args); ok && len(args) == 2 {
 			// MOV <Xd>, <Xm>
 			// is equivalent to
 			// ORR <Xd>, XZR, <Xm>
@@ -966,6 +966,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && 0 <= imm && imm <= 63 {
+			templ := "sf	0	1	0	1	0	1	0	shift	0	Rm	imm6	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		}
 	case "clz":
 		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
