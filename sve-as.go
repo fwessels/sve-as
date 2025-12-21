@@ -266,6 +266,30 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "Rm", "Rn")
 			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
+		} else if ok, zd, imm, T := is_z_i(args); ok && T != "" {
+			// see https://docsmirror.github.io/A64/2023-06/mov_dup_z_i.html
+			// MOV <Zd>.<T>, #<imm>{, <shift>}
+			// is equivalent to
+			// DUP <Zd>.<T>, #<imm>{, <shift>}
+			templ := "0	0	1	0	0	1	0	1	size	1	1	1	0	0	0	1	1	sh	imm8	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			sh := ""
+			if imm >= -128 && imm <= 127 {
+				sh = "0"
+				if imm < 0 {
+					imm = 0x100 + imm
+				}
+			} else if imm >= -128*256 && imm <= 127*256 && imm%256 == 0 {
+				sh = "1"
+				if imm < 0 {
+					imm = 0x10000 + imm
+				}
+				imm = imm >> 8
+			}
+			if sh != "" {
+				templ = strings.ReplaceAll(templ, "sh", sh)
+				return assem_z_i(templ, zd, "imm8", imm), 0, nil
+			}
 		}
 	case "mvn":
 		if ok, rd, rn := is_r_r(args); ok {
@@ -1968,15 +1992,17 @@ func is_z_ri(args []string) (ok bool, zd, rn, imm int, T string) {
 func is_r_i(args []string) (ok bool, rd int, imm, shift int) {
 	if len(args) == 2 || len(args) == 4 {
 		rd = getR(args[0])
-		if ok, imm := getImm(args[1]); ok {
-			if len(args) == 4 && args[2] == "lsl" {
-				if ok, sh := getImm(args[3]); ok {
-					if sh == 0 || sh == 12 {
-						return true, rd, imm, sh
+		if rd != -1 {
+			if ok, imm := getImm(args[1]); ok {
+				if len(args) == 4 && args[2] == "lsl" {
+					if ok, sh := getImm(args[3]); ok {
+						if sh == 0 || sh == 12 {
+							return true, rd, imm, sh
+						}
 					}
+				} else {
+					return true, rd, imm, 0
 				}
-			} else {
-				return true, rd, imm, 0
 			}
 		}
 	}
