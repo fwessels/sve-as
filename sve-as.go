@@ -342,12 +342,58 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 					return assem_r_rr(templ, rt, rn, rm, "", 0), 0, nil
 				}
 			}
-		} else if ok, rt, rn, imm12 := is_r_bi(args); ok {
-			if imm12&7 == 0 {
-				templ := "1	x	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
-				templ = strings.ReplaceAll(templ, "Rt", "Rd")
-				templ = strings.ReplaceAll(templ, "x", "1")
-				return assem_r_ri(templ, rt, rn, "imm12", imm12/8, 0), 0, nil
+		} else if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
+			if writeBack {
+				if -256 <= imm && imm <= 255 {
+					var templ string
+					if postIndex {
+						templ = "1	x	1	1	1	0	0	0	0	1	0	imm9	0	1	Rn	Rt"
+					} else {
+						templ = "1	x	1	1	1	0	0	0	0	1	0	imm9	1	1	Rn	Rt"
+					}
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "1")
+					if imm < 0 {
+						imm = (1 << 9) + imm
+					}
+					return assem_r_ri(templ, rt, rn, "imm9", imm, 0), 0, nil
+				}
+			} else {
+				// unsigned offset
+				if imm&7 == 0 && imm >= 0 && imm < 32768 {
+					templ := "1	x	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "1")
+					return assem_r_ri(templ, rt, rn, "imm12", imm/8, 0), 0, nil
+				}
+			}
+		}
+	case "ldrb":
+		if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
+			if writeBack {
+				if -256 <= imm && imm <= 255 {
+					var templ string
+					if postIndex {
+						templ = "0	0	1	1	1	0	0	0	0	1	0	imm9	0	1	Rn	Rt"
+					} else {
+						templ = "0	0	1	1	1	0	0	0	0	1	0	imm9	1	1	Rn	Rt"
+					}
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "1")
+					if imm < 0 {
+						imm = (1 << 9) + imm
+					}
+					return assem_r_ri(templ, rt, rn, "imm9", imm, 0), 0, nil
+				}
+			} else {
+				// unsigned offset
+				if imm >= 0 && imm < 4096 {
+					templ := "0	0	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "sh", "")
+					return assem_r_ri(templ, rt, rn, "imm12", imm, 0), 0, nil
+				}
+
 			}
 		}
 	case "str":
@@ -374,12 +420,29 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 					return assem_r_rr(templ, rt, rn, rm, "", 0), 0, nil
 				}
 			}
-		} else if ok, rt, rn, imm12 := is_r_bi(args); ok {
-			if imm12&7 == 0 {
-				templ := "1	x	1	1	1	0	0	1	0	0	imm12	Rn	Rt"
-				templ = strings.ReplaceAll(templ, "Rt", "Rd")
-				templ = strings.ReplaceAll(templ, "x", "1")
-				return assem_r_ri(templ, rt, rn, "imm12", imm12/8, 0), 0, nil
+		} else if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
+			if writeBack {
+				if -256 <= imm && imm <= 255 {
+					var templ string
+					if postIndex {
+						templ = "1	x	1	1	1	0	0	0	0	0	0	imm9	0	1	Rn	Rt"
+					} else {
+						templ = "1	x	1	1	1	0	0	0	0	0	0	imm9	1	1	Rn	Rt"
+					}
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "1")
+					if imm < 0 {
+						imm = (1 << 9) + imm
+					}
+					return assem_r_ri(templ, rt, rn, "imm9", imm, 0), 0, nil
+				}
+			} else {
+				if imm&7 == 0 && imm >= 0 && imm < 32768 {
+					templ := "1	x	1	1	1	0	0	1	0	0	imm12	Rn	Rt"
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "1")
+					return assem_r_ri(templ, rt, rn, "imm12", imm/8, 0), 0, nil
+				}
 			}
 		}
 	case "ld1d":
@@ -484,11 +547,31 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "ldrh":
-		if ok, rt, rn, imm12 := is_r_bi(args); ok {
-			templ := "0	1	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
-			templ = strings.ReplaceAll(templ, "Rt", "Rd")
-			templ = strings.ReplaceAll(templ, "sh", "")
-			return assem_r_ri(templ, rt, rn, "imm12", imm12/2, 0), 0, nil
+		if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
+			if writeBack {
+				if -256 <= imm && imm <= 255 {
+					var templ string
+					if postIndex {
+						templ = "0	1	1	1	1	0	0	0	0	1	0	imm9	0	1	Rn	Rt"
+					} else {
+						templ = "0	1	1	1	1	0	0	0	0	1	0	imm9	1	1	Rn	Rt"
+					}
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "1")
+					if imm < 0 {
+						imm = (1 << 9) + imm
+					}
+					return assem_r_ri(templ, rt, rn, "imm9", imm, 0), 0, nil
+				}
+			} else {
+				// unsigned offset
+				if imm&1 == 0 && imm >= 0 && imm < 8192 {
+					templ := "0	1	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "sh", "")
+					return assem_r_ri(templ, rt, rn, "imm12", imm/2, 0), 0, nil
+				}
+			}
 		}
 	case "lsr":
 		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
@@ -1493,12 +1576,22 @@ func is_r_ri(args []string) (ok bool, rd, rn, imm, shift int) {
 	return
 }
 
-func is_r_bi(args []string) (ok bool, rt, xn, imm int) {
+func is_r_bi(args []string) (ok bool, rt, xn, imm int, postIndex, writeBack bool) {
 	if len(args) >= 2 {
 		rt = getR(args[0])
-		if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+		if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]!") { // preIndex
 			if xn, imm = getMemAddrImm(args[1:]); xn != -1 {
-				return true, rt, xn, imm
+				return true, rt, xn, imm, false, true
+			}
+		} else if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+			if xn, imm = getMemAddrImm(args[1:]); xn != -1 {
+				return true, rt, xn, imm, false, false
+			}
+		} else if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[1], "]") { // postIndex
+			memreg := strings.NewReplacer("[", "", "]", "").Replace(args[1])
+			xn = getR(memreg)
+			if ok, imm := getImm(args[2]); ok && xn != -1 {
+				return true, rt, xn, imm, true, true
 			}
 		}
 	}
@@ -1891,9 +1984,9 @@ func is_r_i(args []string) (ok bool, rd int, imm, shift int) {
 }
 
 func getMemAddrImm(args []string) (xn, imm int) {
-	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+	if args[0][0] == '[' && (strings.HasSuffix(args[len(args)-1], "]") || strings.HasSuffix(args[len(args)-1], "]!")) {
 		memaddr := strings.Join(args[0:], ", ")
-		memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL").Replace(memaddr)
+		memaddr = strings.NewReplacer("[", "", "]!", "", "]", "", "MUL, VL", "MUL VL").Replace(memaddr)
 		mas := strings.Split(memaddr, ", ")
 		if len(mas) >= 1 {
 			xn = getR(mas[0])
@@ -2154,6 +2247,8 @@ func assem_r_ri(template string, rd, rn int, immPttrn string, imm, shift int) ui
 	switch immPttrn {
 	case "imm6":
 		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
+	case "imm9":
+		opcode = strings.ReplaceAll(opcode, "imm9", fmt.Sprintf("%0*s", 9, strconv.FormatUint(uint64(imm), 2)))
 	case "imm12":
 		opcode = strings.ReplaceAll(opcode, "imm12", fmt.Sprintf("%0*s", 12, strconv.FormatInt(int64(imm), 2)))
 	case "imm13":
