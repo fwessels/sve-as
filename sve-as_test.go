@@ -97,6 +97,16 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x9a83d041 // csel x1, x2, x3, le"},
 		{"    WORD $0x9a83e041 // csel x1, x2, x3, al"},
 		{"    WORD $0x9a83f041 // csel x1, x2, x3, nv"},
+		{"    WORD $0x9a8c056a // csinc x10, x11, x12, eq"},
+		{"    WORD $0x9a8c156a // csinc x10, x11, x12, ne"},
+		{"    WORD $0x9a8b156a // cinc x10, x11, eq"}, // eq = none
+		{"    WORD $0x9a8b056a // cinc x10, x11, ne"}, // ne = any
+		{"    WORD $0x9a9f27f4 // cset x20, cc"},
+		{"    WORD $0x9a9f37f4 // cset x20, cs"},
+		{"    WORD $0xda830441 // csneg x1, x2, x3, eq"},
+		{"    WORD $0xda831441 // csneg x1, x2, x3, ne"},
+		{"    WORD $0xda821441 // cneg x1, x2, eq"},
+		{"    WORD $0xda820441 // cneg x1, x2, ne"},
 		{"    WORD $0x9b020c20 // madd x0, x1, x2, x3"},
 		{"    WORD $0x9b027c20 // mul x0, x1, x2"},
 		{"    WORD $0x9ac20c20 // sdiv x0, x1, x2"},

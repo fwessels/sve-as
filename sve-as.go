@@ -1260,11 +1260,48 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		}
 	case "csel":
 		if ok, rd, rn, rm, cond := is_r_rr_cond(args); ok {
-			_ = cond
 			templ := "sf	0	0	1	1	0	1	0	1	0	0	Rm	cond	0	0	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "cond", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(cond), 2)))
-
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
+	case "csinc":
+		if ok, rd, rn, rm, cond := is_r_rr_cond(args); ok {
+			templ := "sf	0	0	1	1	0	1	0	1	0	0	Rm	cond	0	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "cond", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(cond), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
+	case "cinc", "cneg":
+		if ok, rd, rn, cond := is_r_r_cond(args); ok {
+			// CINC <Xd>, <Xn>, <cond>                 | CNEG <Wd>, <Wn>, <cond>
+			// is equivalent to                        | is equivalent to
+			// CSINC <Xd>, <Xn>, <Xn>, invert(<cond>)  | CSNEG <Wd>, <Wn>, <Wn>, invert(<cond>)
+			templ := "sf	0	0	1	1	0	1	0	1	0	0	Rm	cond	0	1	Rn	Rd"
+			if mnem == "cneg" {
+				templ = "sf	1	0	1	1	0	1	0	1	0	0	Rm	cond	0	1	Rn	Rd"
+			}
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			cond = invertCond(cond)
+			templ = strings.ReplaceAll(templ, "cond", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(cond), 2)))
+			return assem_r_rr(templ, rd, rn, rn, "", 0), 0, nil
+		}
+	case "cset":
+		if ok, rd, cond := is_r_cond(args); ok {
+			// CSET <Wd>, <cond>
+			// is equivalent to
+			// CSINC <Wd>, WZR, WZR, invert(<cond>)
+			templ := "sf	0	0	1	1	0	1	0	1	0	0	Rm	cond	0	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			cond = invertCond(cond)
+			templ = strings.ReplaceAll(templ, "cond", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(cond), 2)))
+			return assem_r_rr(templ, rd, 31, 31, "", 0), 0, nil
+		}
+	case "csneg":
+		if ok, rd, rn, rm, cond := is_r_rr_cond(args); ok {
+			templ := "sf	1	0	1	1	0	1	0	1	0	0	Rm	cond	0	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "cond", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(cond), 2)))
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	}
