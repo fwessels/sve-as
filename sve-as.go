@@ -612,6 +612,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "N", "1")
 			templ = strings.ReplaceAll(templ, "x", "1") // x bit is set for compat with 'as'
 			return assem_r_ri(templ, rd, rn, "immr", imm, 0), 0, nil
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			// LSR <Xd>, <Xn>, <Xm>
+			// is equivalent to
+			// LSRV <Xd>, <Xn>, <Xm>
+			// and is always the preferred disassembly.
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	1	0	0	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -636,6 +645,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
 			return assem_z_zi(templ, zd, zn, "imm3", imm3), 0, nil
 		}
+	case "lsrv":
+		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	1	0	0	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
 	case "lsl":
 		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
@@ -649,6 +665,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "N", "1")
 			templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
 			return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			// LSL <Xd>, <Xn>, <Xm>
+			// is equivalent to
+			// LSLV <Xd>, <Xn>, <Xm>
+			// and is always the preferred disassembly.
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	1	0	0	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	1	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -661,6 +686,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
 			return assem_z_zi(templ, zd, zn, "imm3", imm3), 0, nil
+		}
+	case "lslv":
+		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	1	0	0	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	case "rdvl":
 		if ok, rd, imm, shift := is_r_i(args); ok {
