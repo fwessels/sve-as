@@ -262,7 +262,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	1	1	Pv	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_zz_4(templ, zd, pg, zn, zd), 0, nil
-		} else if ok, rd, rn := is_r_r(args); ok && len(args) == 2 {
+		} else if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
 			// MOV <Xd>, <Xm>
 			// is equivalent to
 			// ORR <Xd>, XZR, <Xm>
@@ -296,7 +296,8 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "mvn":
-		if ok, rd, rn := is_r_r(args); ok {
+		if ok, rd, rn, shift, imm := is_r_r(args); ok {
+			_, _ = shift, imm
 			// MVN <Xd>, <Xm>{, <shift> #<amount>}
 			// is equivalent to
 			// ORN <Xd>, XZR, <Xm>{, <shift> #<amount>}
@@ -306,12 +307,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Rm", "Rn")
 			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
 		}
-	case "cmp":
+	case "cmp", "cmn":
 		if ok, rd, imm, shift := is_r_i(args); ok && 0 <= imm && imm < 4096 && (shift == 0 || shift == 12) {
-			// CMP <Xn|SP>, #<imm>{, <shift>}
-			// is equivalent to
-			// SUBS XZR, <Xn|SP>, #<imm> {, <shift>}
+			// CMP <Xn|SP>, #<imm>{, <shift>}         |  CMN <Xn|SP>, #<imm>{, <shift>}
+			// is equivalent to                       |  is equivalent to
+			// SUBS XZR, <Xn|SP>, #<imm> {, <shift>}  |  ADDS XZR, <Xn|SP>, #<imm> {, <shift>}
 			templ := "sf	1	1	1	0	0	0	1	0	sh	imm12	Rn	1	1	1	1	1"
+			if mnem == "cmn" {
+				templ = "sf	0	1	1	0	0	0	1	0	sh	imm12	Rn	1	1	1	1	1"
+			}
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "Rn", "Rd")
 			if shift == 12 {
@@ -320,21 +324,19 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ = strings.ReplaceAll(templ, "sh", "0") // LSL #0
 			}
 			return assem_r_i(templ, rd, "imm12", imm), 0, nil
-		} else if ok, rd, rn := is_r_r(args); ok && len(args) == 2 {
-			// CMP <Xn>, <Xm>{, <shift> #<amount>}
-			// is equivalent to
-			// SUBS XZR, <Xn>, <Xm> {, <shift> #<amount>}
+		} else if ok, rd, rn, shift, imm := is_r_r(args); ok {
+			// CMP <Xn>, <Xm>{, <shift> #<amount>}         |  CMN <Xn>, <Xm>{, <shift> #<amount>}
+			// is equivalent to                            |  is equivalent to
+			// SUBS XZR, <Xn>, <Xm> {, <shift> #<amount>}  |  ADDS XZR, <Xn>, <Xm> {, <shift> #<amount>}
 			templ := "sf	1	1	0	1	0	1	1	shift	0	Rm	imm6	Rn	1	1	1	1	1"
+			if mnem == "cmn" {
+				templ = "sf	0	1	0	1	0	1	1	shift	0	Rm	imm6	Rn	1	1	1	1	1"
+			}
 			templ = strings.ReplaceAll(templ, "sf", "1")
-			// 00	LSL
-			// 01	LSR
-			// 10	ASR
-			// 11	RESERVED
-			templ = strings.ReplaceAll(templ, "shift", "00")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			templ = strings.ReplaceAll(templ, "Rn", "Rd")
 			templ = strings.ReplaceAll(templ, "Rm", "Rn")
-
-			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
+			return assem_r_ri(templ, rd, rn, "imm6", imm, 0), 0, nil
 		}
 	case "adr":
 		if ok, rd, imm, shift := is_r_i(args); ok {
@@ -1398,6 +1400,13 @@ func getCond(cond string) int {
 	}
 }
 
+func invertCond(cond int) int {
+	if cond < 14 { // AL / NV excluded
+		return cond ^ 1 // invert = flip bit 0
+	}
+	return cond
+}
+
 func getP(r string) int {
 	if len(r) > 0 && r[0] == 'p' {
 		if num, err := strconv.ParseInt(r[1:], 10, 32); err == nil && num < 16 {
@@ -1635,6 +1644,28 @@ func is_r_rr(args []string) (ok bool, rd, rn, rm, shift, imm int) {
 	return
 }
 
+func is_r_cond(args []string) (ok bool, rd, cond int) {
+	if len(args) == 2 {
+		rd = getR(args[0])
+		cond = getCond(args[1])
+		if rd != -1 && cond != -1 {
+			return true, rd, cond
+		}
+	}
+	return
+}
+
+func is_r_r_cond(args []string) (ok bool, rd, rn, cond int) {
+	if len(args) == 3 {
+		rd, rn = getR(args[0]), getR(args[1])
+		cond = getCond(args[2])
+		if rd != -1 && rn != -1 && cond != -1 {
+			return true, rd, rn, cond
+		}
+	}
+	return
+}
+
 func is_r_rr_cond(args []string) (ok bool, rd, rn, rm, cond int) {
 	if len(args) == 4 {
 		rd, rn, rm = getR(args[0]), getR(args[1]), getR(args[2])
@@ -1656,12 +1687,17 @@ func is_r_rrr(args []string) (ok bool, rd, rn, rm, ra int) {
 	return
 }
 
-func is_r_r(args []string) (ok bool, rd, rn int) {
-	if len(args) >= 2 {
+func is_r_r(args []string) (ok bool, rd, rn, shift, imm int) {
+	if len(args) == 2 {
 		rd, rn = getR(args[0]), getR(args[1])
 		if rd != -1 && rn != -1 {
-			return true, rd, rn
+			return true, rd, rn, 0, 0
 		}
+	} else if len(args) == 4 {
+		rd, rn = getR(args[0]), getR(args[1])
+		shift = getShift(args[2])
+		ok, imm = getImm(args[3])
+		return true, rd, rn, shift, imm
 	}
 	return
 }
