@@ -61,6 +61,19 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
+	case "adc", "adcs", "sbc", "sbcs":
+		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && len(args) == 3 && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	Rn	Rd"
+			if mnem == "adcs" {
+				templ = "sf	0	1	1	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	Rn	Rd"
+			} else if mnem == "sbc" {
+				templ = "sf	1	0	1	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	Rn	Rd"
+			} else if mnem == "sbcs" {
+				templ = "sf	1	1	1	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	Rn	Rd"
+			}
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
 	case "udiv":
 		if ok, rd, rn, rm, _, _ := is_r_rr(args); ok {
 			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	0	0	1	0	Rn	Rd"
@@ -306,6 +319,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "shift", "0\t0")
 			templ = strings.ReplaceAll(templ, "Rm", "Rn")
 			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
+		}
+	case "abs":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	1	0	0	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
 		}
 	case "cmp", "cmn":
 		if ok, rd, imm, shift := is_r_i(args); ok && 0 <= imm && imm < 4096 && (shift == 0 || shift == 12) {

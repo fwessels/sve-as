@@ -124,6 +124,11 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x9ac20c20 // sdiv x0, x1, x2"},
 		{"    WORD $0x9b0cb56a // msub x10, x11, x12, x13"},
 		{"    WORD $0x9b0cfd6a // mneg x10, x11, x12"},
+		{"    WORD $0xdac02041 // abs x1, x2"},
+		{"    WORD $0x9a030041 // adc x1, x2, x3"},
+		{"    WORD $0xba0600a4 // adcs x4, x5, x6"},
+		{"    WORD $0xda090107 // sbc x7, x8, x9"},
+		{"    WORD $0xfa0c016a // sbcs x10, x11, x12"},
 		//
 		// vector instructions
 		{"    WORD $0x05e039e2 // mov z2.d, x15"},
