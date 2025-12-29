@@ -758,6 +758,40 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
+	case "extr":
+		if ok, rd, rn, rm, imm := is_r_rri(args); ok && 0 <= imm && imm <= 63 {
+			templ := "sf	0	0	1	0	0	1	1	1	N	0	Rm	imms	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			templ = strings.ReplaceAll(templ, "imms", "imm6")
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
+		}
+	case "ror":
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 && 0 <= imm && imm <= 63 {
+			// ROR <Xd>, <Xs>, #<shift>
+			// is equivalent to
+			// EXTR <Xd>, <Xs>, <Xs>, #<shift>
+			// and is the preferred disassembly when Rn == Rm.
+			templ := "sf	0	0	1	0	0	1	1	1	N	0	Rm	imms	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			templ = strings.ReplaceAll(templ, "imms", "imm6")
+			return assem_r_rr(templ, rd, rn, rn, "imm6", imm), 0, nil
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	1	0	1	1	Rn	Rd"
+			// ROR <Xd>, <Xn>, <Xm>
+			// is equivalent to
+			// RORV <Xd>, <Xn>, <Xm>
+			// and is always the preferred disassembly.
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
+	case "rorv":
+		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && shift == 0 && imm == 0 {
+			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	1	0	1	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
+		}
 	case "rdvl":
 		if ok, rd, imm, shift := is_r_i(args); ok {
 			_ = shift
