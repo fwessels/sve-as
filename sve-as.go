@@ -717,7 +717,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	case "lsl":
-		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
+		if ok, rd, rn, imm, _ := is_r_ri(args); ok && 0 <= imm && imm <= 63 {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
 			// see https://docsmirror.github.io/A64/2023-06/lsl_ubfm.html
 			// LSL <Xd>, <Xn>, #<shift>
@@ -1804,6 +1804,17 @@ func is_r_rr(args []string) (ok bool, rd, rn, rm, shift, imm int) {
 		shift = getShift(args[3])
 		ok, imm = getImm(args[4])
 		return
+	}
+	return
+}
+
+func is_r_rri(args []string) (ok bool, rd, rn, rm, imm int) {
+	if len(args) == 4 {
+		rd, rn, rm = getR(args[0]), getR(args[1]), getR(args[2])
+		if rd != -1 && rn != -1 && rm != -1 {
+			ok, imm = getImm(args[3])
+			return
+		}
 	}
 	return
 }
