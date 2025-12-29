@@ -1008,7 +1008,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	case "sbfm": // Signed Bitfield Move
 		// use preferred assembly, either one of: asr (immediate), sbfiz, sbfx, sxtb, sxth, or sxtw.
 	case "sbfiz": // Signed Bitfield Insert in Zeros
-		if ok, rd, rn, lsb, width := is_r_rii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 63 {
+		if ok, rd, rn, lsb, width := is_r_rii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 64-lsb {
 			// SBFIZ <Xd>, <Xn>, #<lsb>, #<width>
 			// is equivalent to
 			// SBFM <Xd>, <Xn>, #(-<lsb> MOD 64), #(<width>-1)
@@ -1024,7 +1024,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "sbfx": // Signed Bitfield Extract
-		if ok, rd, rn, lsb, width := is_r_rii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 63 {
+		if ok, rd, rn, lsb, width := is_r_rii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 64-lsb {
 			// SBFX <Xd>, <Xn>, #<lsb>, #<width>
 			// is equivalent to
 			// SBFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
@@ -1037,7 +1037,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
 			return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
 		}
-	case "sxtb", "sxth", "sxtw": //Sign Extend Byte/Halfword/Word
+	case "sxtb", "sxth", "sxtw": // Sign Extend Byte/Halfword/Word
 		if ok, rd, rn, shift, imm := is_r_r(args); ok && shift == 0 && imm == 0 {
 			// SXTB <Xd>, <Wn>
 			// is equivalent to
