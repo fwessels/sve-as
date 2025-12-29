@@ -1005,6 +1005,57 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
+	case "sbfm": // Signed Bitfield Move
+		// use preferred assembly, either one of: asr (immediate), sbfiz, sbfx, sxtb, sxth, or sxtw.
+	case "sbfiz": // Signed Bitfield Insert in Zeros
+		if ok, rd, rn, lsb, width := is_r_rii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 63 {
+			// SBFIZ <Xd>, <Xn>, #<lsb>, #<width>
+			// is equivalent to
+			// SBFM <Xd>, <Xn>, #(-<lsb> MOD 64), #(<width>-1)
+			// and is the preferred disassembly when UInt(imms) < UInt(immr).
+			templ := "sf	0	0	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			immr := uint(-lsb) % 64
+			imms := uint(width - 1)
+			if imms < immr { // preferred disassembly when UInt(imms) < UInt(immr)
+				templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
+				return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
+			}
+		}
+	case "sbfx": // Signed Bitfield Extract
+		if ok, rd, rn, lsb, width := is_r_rii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 63 {
+			// SBFX <Xd>, <Xn>, #<lsb>, #<width>
+			// is equivalent to
+			// SBFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+			// and is the preferred disassembly when BFXPreferred(sf, opc<1>, imms, immr).
+			templ := "sf	0	0	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			immr := lsb
+			imms := lsb + width - 1
+			templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
+			return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
+		}
+	case "sxtb", "sxth", "sxtw": //Sign Extend Byte/Halfword/Word
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && shift == 0 && imm == 0 {
+			// SXTB <Xd>, <Wn>
+			// is equivalent to
+			// SBFM <Xd>, <Xn>, #0, #7
+			// and is always the preferred disassembly.
+			templ := "sf	0	0	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			immr := 0
+			imms := 7
+			if mnem == "sxth" {
+				imms = 15
+			} else if mnem == "sxtw" {
+				imms = 31
+			}
+			templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
+			return assem_r_ri(templ, rd, rn, "immr", immr, 0), 0, nil
+		}
 	case "scvtf":
 		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
 			if T == "s" {
@@ -1886,6 +1937,20 @@ func is_r_ri(args []string) (ok bool, rd, rn, imm, shift int) {
 					return true, rd, rn, imm, 1
 				}
 				return true, rd, rn, imm, 0
+			}
+		}
+	}
+	return
+}
+
+func is_r_rii(args []string) (ok bool, rd, rn, immr, imms int) {
+	if len(args) == 4 {
+		rd, rn = getR(args[0]), getR(args[1])
+		if rd != -1 && rn != -1 {
+			if ok, immr := getImm(args[2]); ok {
+				if ok, imms := getImm(args[3]); ok {
+					return true, rd, rn, immr, imms
+				}
 			}
 		}
 	}
