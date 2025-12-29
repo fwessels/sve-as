@@ -344,6 +344,31 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
 		}
+	case "rbit":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	0	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
+	case "rev16":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	0	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
+	case "rev32":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "1	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	1	0	Rn	Rd"
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
+	case "rev64":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			// REV64 <Xd>, <Xn>
+			// is equivalent to
+			// REV <Xd>, <Xn>
+			templ := "1	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	1	1	Rn	Rd"
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
 	case "cmp", "cmn":
 		if ok, rd, imm, shift := is_r_i(args); ok && 0 <= imm && imm < 4096 && (shift == 0 || shift == 12) {
 			// CMP <Xn|SP>, #<imm>{, <shift>}         |  CMN <Xn|SP>, #<imm>{, <shift>}
@@ -863,7 +888,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
 		}
 	case "rev":
-		if ok, zd, zn, T := is_z_z(args); ok {
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	0	1	x	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "x", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		} else if ok, zd, zn, T := is_z_z(args); ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	1	1	0	0	0	0	0	1	1	1	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_z(templ, zd, zn), 0, nil
