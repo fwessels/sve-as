@@ -326,6 +326,24 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
 		}
+	case "cls":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	0	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
+	case "cnt":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	1	1	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
+	case "ctz":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	1	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
 	case "cmp", "cmn":
 		if ok, rd, imm, shift := is_r_i(args); ok && 0 <= imm && imm < 4096 && (shift == 0 || shift == 12) {
 			// CMP <Xn|SP>, #<imm>{, <shift>}         |  CMN <Xn|SP>, #<imm>{, <shift>}
@@ -1026,7 +1044,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		}
 	case "clz":
-		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	0	0	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	1	1	0	1	Pg	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_z(templ, zd, pg, zn), 0, nil
