@@ -1360,6 +1360,53 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "cond", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(cond), 2)))
 			return assem_r_rr(templ, rd, 31, 31, "", 0), 0, nil
 		}
+	case "cas", "casa", "casal", "casl", "casb", "casab", "casalb", "caslb", "cash", "casah", "casalh", "caslh":
+		if ok, rt, rs, rn := is_r_r_b(args); ok {
+			templ := "1	x	0	0	1	0	0	0	1	L	1	Rs	o0	1	1	1	1	1	Rn	Rt"
+			if mnem == "casb" || mnem == "casab" || mnem == "casalb" || mnem == "caslb" {
+				templ = "0	0	0	0	1	0	0	0	1	L	1	Rs	o0	1	1	1	1	1	Rn	Rt"
+			} else if mnem == "cash" || mnem == "casah" || mnem == "casalh" || mnem == "caslh" {
+				templ = "0	1	0	0	1	0	0	0	1	L	1	Rs	o0	1	1	1	1	1	Rn	Rt"
+			}
+			templ = strings.ReplaceAll(templ, "x", "1")
+			if mnem == "cas" || mnem == "casb" || mnem == "cash" {
+				templ = strings.ReplaceAll(templ, "L", "0")
+				templ = strings.ReplaceAll(templ, "o0", "0")
+			} else if mnem == "casa" || mnem == "casab" || mnem == "casah" {
+				templ = strings.ReplaceAll(templ, "L", "1")
+				templ = strings.ReplaceAll(templ, "o0", "0")
+			} else if mnem == "casal" || mnem == "casalb" || mnem == "casalh" {
+				templ = strings.ReplaceAll(templ, "L", "1")
+				templ = strings.ReplaceAll(templ, "o0", "1")
+			} else if mnem == "casl" || mnem == "caslb" || mnem == "caslh" {
+				templ = strings.ReplaceAll(templ, "L", "0")
+				templ = strings.ReplaceAll(templ, "o0", "1")
+			}
+			templ = strings.ReplaceAll(templ, "Rt", "Rd")
+			templ = strings.ReplaceAll(templ, "Rs", "Rm")
+			return assem_r_rr(templ, rt, rn, rs, "", 0), 0, nil
+		}
+	case "casp", "caspa", "caspal", "caspl":
+		if ok, rt, rs, rn := is_rr_rr_b(args); ok {
+			templ := "0	sz	0	0	1	0	0	0	0	L	1	Rs	o0	1	1	1	1	1	Rn	Rt"
+			templ = strings.ReplaceAll(templ, "sz", "1")
+			if mnem == "casp" {
+				templ = strings.ReplaceAll(templ, "L", "0")
+				templ = strings.ReplaceAll(templ, "o0", "0")
+			} else if mnem == "caspa" {
+				templ = strings.ReplaceAll(templ, "L", "1")
+				templ = strings.ReplaceAll(templ, "o0", "0")
+			} else if mnem == "caspal" {
+				templ = strings.ReplaceAll(templ, "L", "1")
+				templ = strings.ReplaceAll(templ, "o0", "1")
+			} else if mnem == "caspl" {
+				templ = strings.ReplaceAll(templ, "L", "0")
+				templ = strings.ReplaceAll(templ, "o0", "1")
+			}
+			templ = strings.ReplaceAll(templ, "Rt", "Rd")
+			templ = strings.ReplaceAll(templ, "Rs", "Rm")
+			return assem_r_rr(templ, rt, rn, rs, "", 0), 0, nil
+		}
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)
@@ -1764,6 +1811,36 @@ func is_r_br(args []string) (ok bool, rt, rn, rm, option, amount int) {
 		if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 			if rn, rm, option, amount = getMemAddrRegister(args[1:]); rn != -1 && rm != -1 {
 				return true, rt, rn, rm, option, amount
+			}
+		}
+	}
+	return
+}
+
+func is_r_r_b(args []string) (ok bool, rt, rs, rn int) {
+	if len(args) >= 3 {
+		rs = getR(args[0])
+		rt = getR(args[1])
+		if rs != -1 && rt != -1 {
+			var imm int
+			if rn, imm = getMemAddrImm(args[2:]); rn != -1 && imm == 0 {
+				return true, rt, rs, rn
+			}
+		}
+	}
+	return
+}
+
+func is_rr_rr_b(args []string) (ok bool, rt, rs, rn int) {
+	if len(args) >= 5 {
+		rs = getR(args[0])
+		if rs != -1 && rs+1 == getR(args[1]) {
+			rt = getR(args[2])
+			if rt != -1 && rt+1 == getR(args[3]) {
+				var imm int
+				if rn, imm = getMemAddrImm(args[4:]); rn != -1 && imm == 0 {
+					return true, rt, rs, rn
+				}
 			}
 		}
 	}
