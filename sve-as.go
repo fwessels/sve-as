@@ -2407,6 +2407,8 @@ func assem_r_ri(template string, rd, rn int, immPttrn string, imm, shift int) ui
 	opcode = strings.ReplaceAll(opcode, "Rd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rd), 2)))
 	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
 	switch immPttrn {
+	case "":
+		// ignore
 	case "imm6":
 		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
 	case "imm9":
