@@ -284,78 +284,107 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_r(templ, zd, rn), 0, nil
 		}
-	case "mov":
-		if ok, pd, pn, T := is_p_p(args); ok && strings.ToLower(T) == "b" {
-			templ := "0	0	1	0	0	1	0	1	1	0	0	0	Pm	0	1	Pg	0	Pn	0	Pd"
-			// MOV <Pd>.B, <Pn>.B
+	case "mov", "movz", "movk", "movn":
+		if mnem == "mov" || mnem == "movz" || mnem == "movk" || mnem == "movn" {
+			// MOV <Xd>, #<imm>
 			// is equivalent to
-			// ORR <Pd>.B, <Pn>/Z, <Pn>.B, <Pn>.B
-			return assem_p_p_p_p(templ, pd, pn, pn, pn), 0, nil
-		} else if ok, zd, rn, T := is_z_r(args); ok {
-			templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
-			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			return assem_z_r(templ, zd, rn), 0, nil
-		} else if ok, rd, _imm, shift := is_r_i(args); ok {
-			imm := uint(_imm)
-			if shift == 0 && imm >= 0x10000 {
-				if imm & ^uint(0xffff0000) == 0 {
-					shift = 16
-				} else if imm & ^uint(0xffff00000000) == 0 {
-					shift = 32
-				} else if uint(imm) & ^uint(0xffff000000000000) == 0 {
-					shift = 48
+			// MOVZ <Xd>, #<imm16>, LSL #<shift>
+			if ok, rd, _imm, shift := is_r_i(args); ok {
+				imm := uint(_imm)
+				if shift == 0 && imm >= 0x10000 {
+					if imm & ^uint(0xffff0000) == 0 {
+						shift = 16
+					} else if imm & ^uint(0xffff00000000) == 0 {
+						shift = 32
+					} else if uint(imm) & ^uint(0xffff000000000000) == 0 {
+						shift = 48
+					} else if mnem == "mov" {
+						// check if we can convert constant into inverted constant for `movn` instruction
+						if ^imm & ^uint(0xffff) == 0 {
+							mnem = "movn"
+							shift = 0
+							imm = ^imm
+						} else if ^imm & ^uint(0xffff0000) == 0 {
+							mnem = "movn"
+							shift = 16
+							imm = ^imm
+						} else if ^imm & ^uint(0xffff00000000) == 0 {
+							mnem = "movn"
+							shift = 32
+							imm = ^imm
+						} else if ^imm & ^uint(0xffff000000000000) == 0 {
+							mnem = "movn"
+							shift = 48
+							imm = ^imm
+						}
+					}
+					imm = imm >> shift
 				}
-				imm = imm >> shift
+				hw := (shift >> 4) & 3 // 0 (the default), 16, 32 or 48, encoded in the "hw" field as <shift>/16.
+				if hw<<4 == shift && 0 <= imm && imm < 0x10000 {
+					templ := "sf	1	0	1	0	0	1	0	1	hw	imm16	Rd"
+					if mnem == "movk" {
+						templ = "sf	1	1	1	0	0	1	0	1	hw	imm16	Rd"
+					} else if mnem == "movn" {
+						templ = "sf	0	0	1	0	0	1	0	1	hw	imm16	Rd"
+					}
+					templ = strings.ReplaceAll(templ, "sf", "1")
+					templ = strings.ReplaceAll(templ, "hw", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(hw), 2)))
+					return assem_r_i(templ, rd, "imm16", int(imm)), 0, nil
+				}
 			}
-			hw := (shift >> 4) & 3 // 0 (the default), 16, 32 or 48, encoded in the "hw" field as <shift>/16.
-			if hw<<4 == shift && 0 <= imm && imm < 0x10000 {
-				// MOV <Xd>, #<imm>
+		}
+		if mnem == "mov" {
+			if ok, pd, pn, T := is_p_p(args); ok && strings.ToLower(T) == "b" {
+				templ := "0	0	1	0	0	1	0	1	1	0	0	0	Pm	0	1	Pg	0	Pn	0	Pd"
+				// MOV <Pd>.B, <Pn>.B
 				// is equivalent to
-				// MOVZ <Xd>, #<imm16>, LSL #<shift>
-				templ := "sf	1	0	1	0	0	1	0	1	hw	imm16	Rd"
+				// ORR <Pd>.B, <Pn>/Z, <Pn>.B, <Pn>.B
+				return assem_p_p_p_p(templ, pd, pn, pn, pn), 0, nil
+			} else if ok, zd, rn, T := is_z_r(args); ok {
+				templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				return assem_z_r(templ, zd, rn), 0, nil
+			} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
+				// MOV <Zd>.<T>, <Pv>/M, <Zn>.<T>
+				//   is equivalent to
+				// SEL <Zd>.<T>, <Pv>, <Zn>.<T>, <Zd>.<T>
+				//   and is the preferred disassembly when Zd == Zm.
+				templ := "0	0	0	0	0	1	0	1	size	1	Zm	1	1	Pv	Zn	Zd"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				return assem_z_p_zz_4(templ, zd, pg, zn, zd), 0, nil
+			} else if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+				// MOV <Xd>, <Xm>
+				// is equivalent to
+				// ORR <Xd>, XZR, <Xm>
+				templ := "sf	0	1	0	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	1	1	1	1	1	Rd"
 				templ = strings.ReplaceAll(templ, "sf", "1")
-				templ = strings.ReplaceAll(templ, "hw", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(hw), 2)))
-				return assem_r_i(templ, rd, "imm16", int(imm)), 0, nil
-			}
-		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
-			// MOV <Zd>.<T>, <Pv>/M, <Zn>.<T>
-			//   is equivalent to
-			// SEL <Zd>.<T>, <Pv>, <Zn>.<T>, <Zd>.<T>
-			//   and is the preferred disassembly when Zd == Zm.
-			templ := "0	0	0	0	0	1	0	1	size	1	Zm	1	1	Pv	Zn	Zd"
-			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			return assem_z_p_zz_4(templ, zd, pg, zn, zd), 0, nil
-		} else if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
-			// MOV <Xd>, <Xm>
-			// is equivalent to
-			// ORR <Xd>, XZR, <Xm>
-			templ := "sf	0	1	0	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	1	1	1	1	1	Rd"
-			templ = strings.ReplaceAll(templ, "sf", "1")
-			templ = strings.ReplaceAll(templ, "Rm", "Rn")
-			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
-		} else if ok, zd, imm, T := is_z_i(args); ok && T != "" {
-			// see https://docsmirror.github.io/A64/2023-06/mov_dup_z_i.html
-			// MOV <Zd>.<T>, #<imm>{, <shift>}
-			// is equivalent to
-			// DUP <Zd>.<T>, #<imm>{, <shift>}
-			templ := "0	0	1	0	0	1	0	1	size	1	1	1	0	0	0	1	1	sh	imm8	Zd"
-			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			sh := ""
-			if imm >= -128 && imm <= 127 {
-				sh = "0"
-				if imm < 0 {
-					imm = 0x100 + imm
+				templ = strings.ReplaceAll(templ, "Rm", "Rn")
+				return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
+			} else if ok, zd, imm, T := is_z_i(args); ok && T != "" {
+				// see https://docsmirror.github.io/A64/2023-06/mov_dup_z_i.html
+				// MOV <Zd>.<T>, #<imm>{, <shift>}
+				// is equivalent to
+				// DUP <Zd>.<T>, #<imm>{, <shift>}
+				templ := "0	0	1	0	0	1	0	1	size	1	1	1	0	0	0	1	1	sh	imm8	Zd"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				sh := ""
+				if imm >= -128 && imm <= 127 {
+					sh = "0"
+					if imm < 0 {
+						imm = 0x100 + imm
+					}
+				} else if imm >= -128*256 && imm <= 127*256 && imm%256 == 0 {
+					sh = "1"
+					if imm < 0 {
+						imm = 0x10000 + imm
+					}
+					imm = imm >> 8
 				}
-			} else if imm >= -128*256 && imm <= 127*256 && imm%256 == 0 {
-				sh = "1"
-				if imm < 0 {
-					imm = 0x10000 + imm
+				if sh != "" {
+					templ = strings.ReplaceAll(templ, "sh", sh)
+					return assem_z_i(templ, zd, "imm8", imm), 0, nil
 				}
-				imm = imm >> 8
-			}
-			if sh != "" {
-				templ = strings.ReplaceAll(templ, "sh", sh)
-				return assem_z_i(templ, zd, "imm8", imm), 0, nil
 			}
 		}
 	case "mvn":
