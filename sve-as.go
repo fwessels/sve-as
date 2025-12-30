@@ -326,6 +326,48 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
 		}
+	case "neg":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && 0 <= imm && imm <= 63 {
+			// NEG <Xd>, <Xm>{, <shift> #<amount>}
+			// is equivalent to
+			// SUB <Xd>, XZR, <Xm> {, <shift> #<amount>}
+			templ := "sf	1	0	0	1	0	1	1	shift	0	Rm	imm6	1	1	1	1	1	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			templ = strings.ReplaceAll(templ, "Rm", "Rn")
+			return assem_r_ri(templ, rd, rn, "imm6", imm, 0), 0, nil
+		}
+	case "negs":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && 0 <= imm && imm <= 63 {
+			// NEGS <Xd>, <Xm>{, <shift> #<amount>}
+			// is equivalent to
+			// SUBS <Xd>, XZR, <Xm> {, <shift> #<amount>}
+			templ := "sf	1	1	0	1	0	1	1	shift	0	Rm	imm6	1	1	1	1	1	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			templ = strings.ReplaceAll(templ, "Rm", "Rn")
+			return assem_r_ri(templ, rd, rn, "imm6", imm, 0), 0, nil
+		}
+	case "ngc":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			// NGC <Xd>, <Xm>
+			// is equivalent to
+			// SBC <Xd>, XZR, <Xm>
+			templ := "sf	1	0	1	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	1	1	1	1	1	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "Rm", "Rn")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
+	case "ngcs":
+		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
+			// NGCS <Xd>, <Xm>
+			// is equivalent to
+			// SBCS <Xd>, XZR, <Xm>
+			templ := "sf	1	1	1	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	1	1	1	1	1	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "Rm", "Rn")
+			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		}
 	case "cls":
 		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
 			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	0	1	Rn	Rd"
