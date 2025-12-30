@@ -2007,6 +2007,20 @@ func is_r_ri(args []string) (ok bool, rd, rn, imm, shift int) {
 	return
 }
 
+func is_r_ii(args []string) (ok bool, rd, immr, imms int) {
+	if len(args) == 3 {
+		rd = getR(args[0])
+		if rd != -1 {
+			if ok, immr := getImm(args[1]); ok {
+				if ok, imms := getImm(args[2]); ok {
+					return true, rd, immr, imms
+				}
+			}
+		}
+	}
+	return
+}
+
 func is_r_rii(args []string) (ok bool, rd, rn, immr, imms int) {
 	if len(args) == 4 {
 		rd, rn = getR(args[0]), getR(args[1])
