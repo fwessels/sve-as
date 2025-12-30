@@ -36,7 +36,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
-		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok {
+		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok && 0 <= imm && imm <= 4095 {
 			templ := "sf	0	0	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), 0, nil
@@ -81,7 +81,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	case "subs":
-		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && 0 <= imm && imm <= 4095 {
 			templ := "sf	1	1	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), 0, nil
@@ -163,8 +163,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
-		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok {
-			_ = shift
+		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 {
 			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
 				templ := "sf	0	0	1	0	0	1	0	0	N	immr	imms	Rn	Rd"
 				templ = strings.ReplaceAll(templ, "sf", "1")
@@ -172,10 +171,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				imm13 := getImm13(imms, immr, "d")
 				return assem_r_ri(templ, rd, rn, "imm13", int(imm13), 0), 0, nil
 			}
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && 0 <= imm && imm <= 63 {
+			templ := "sf	0	0	0	1	0	1	0	shift	0	Rm	imm6	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		}
 	case "ands":
-		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
-			_ = shift // fix
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 {
 			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
 				templ := "sf	1	1	1	0	0	1	0	0	N	immr	imms	Rn	Rd"
 				templ = strings.ReplaceAll(templ, "sf", "1")
@@ -183,6 +186,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				imm13 := getImm13(imms, immr, "d")
 				return assem_r_ri(templ, rd, rn, "imm13", int(imm13), 0), 0, nil
 			}
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && 0 <= imm && imm <= 63 {
+			templ := "sf	1	1	0	1	0	1	0	shift	0	Rm	imm6	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		}
 	case "eor":
 		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
@@ -200,6 +208,33 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && 0 <= imm && imm <= 63 {
+			templ := "sf	1	0	0	1	0	1	0	shift	0	Rm	imm6	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
+		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 {
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "sf	1	0	1	0	0	1	0	0	N	immr	imms	Rn	Rd"
+				templ = strings.ReplaceAll(templ, "sf", "1")
+				templ = strings.ReplaceAll(templ, "N	immr	imms", "imm13")
+				imm13 := getImm13(imms, immr, "d")
+				return assem_r_ri(templ, rd, rn, "imm13", int(imm13), 0), 0, nil
+			}
+		}
+	case "eon":
+		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && 0 <= imm && imm <= 63 {
+			templ := "sf	1	0	0	1	0	1	0	shift	1	Rm	imm6	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
+		}
+	case "orn":
+		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && 0 <= imm && imm <= 63 {
+			templ := "sf	0	1	0	1	0	1	0	shift	1	Rm	imm6	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		}
 	case "tbl":
 		if ok, zd, zn1, zn2, zm, T := is_z_zz_z(args); ok && zn2 == zn1+1 {
@@ -309,16 +344,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "mvn":
-		if ok, rd, rn, shift, imm := is_r_r(args); ok {
-			_, _ = shift, imm
+		if ok, rd, rm, shift, imm := is_r_r(args); ok && 0 <= imm && imm <= 63 {
 			// MVN <Xd>, <Xm>{, <shift> #<amount>}
 			// is equivalent to
 			// ORN <Xd>, XZR, <Xm>{, <shift> #<amount>}
 			templ := "sf	0	1	0	1	0	1	0	shift	1	Rm	imm6	1	1	1	1	1	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
-			templ = strings.ReplaceAll(templ, "shift", "0\t0")
-			templ = strings.ReplaceAll(templ, "Rm", "Rn")
-			return assem_r_ri(templ, rd, rn, "imm6", 0, 0), 0, nil
+			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
+			return assem_r_rr(templ, rd, 31, rm, "imm6", imm), 0, nil
 		}
 	case "abs":
 		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
@@ -708,7 +741,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "lsr":
-		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 && 0 <= imm && imm <= 63 {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	x	1	1	1	1	1	Rn	Rd"
 			// see https://docsmirror.github.io/A64/2023-06/lsr_ubfm.html
 			// LSR <Xd>, <Xn>, #<shift>
@@ -759,7 +792,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	case "lsl":
-		if ok, rd, rn, imm, _ := is_r_ri(args); ok && 0 <= imm && imm <= 63 {
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 && 0 <= imm && imm <= 63 {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
 			// see https://docsmirror.github.io/A64/2023-06/lsl_ubfm.html
 			// LSL <Xd>, <Xn>, #<shift>
@@ -1024,7 +1057,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "asr":
-		if ok, rd, rn, imm, _ := is_r_ri(args); ok {
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 && 0 <= imm && imm <= 63 {
 			templ := "sf	0	0	1	0	0	1	1	0	N	immr	x	1	1	1	1	1	Rn	Rd"
 			// see https://docsmirror.github.io/A64/2023-06/asr_sbfm.html
 			// ASR <Xd>, <Xn>, #<shift>
@@ -1275,6 +1308,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
+		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 {
+			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
+				templ := "sf	0	1	1	0	0	1	0	0	N	immr	imms	Rn	Rd"
+				templ = strings.ReplaceAll(templ, "sf", "1")
+				templ = strings.ReplaceAll(templ, "N	immr	imms", "imm13")
+				imm13 := getImm13(imms, immr, "d")
+				return assem_r_ri(templ, rd, rn, "imm13", int(imm13), 0), 0, nil
+			}
 		}
 	case "clz":
 		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
@@ -1344,11 +1385,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "sub":
-		if ok, rd, rn, imm, shift := is_r_ri(args); ok {
+		if ok, rd, rn, imm, shift := is_r_ri(args); ok && 0 <= imm && imm <= 4095 {
 			templ := "sf	1	0	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), 0, nil
-		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok {
+		} else if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && 0 <= imm && imm <= 63 {
 			templ := "sf	1	0	0	1	0	1	1	shift	0	Rm	imm6	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
