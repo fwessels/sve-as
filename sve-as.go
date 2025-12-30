@@ -295,13 +295,28 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_r(templ, zd, rn), 0, nil
-		} else if ok, rd, imm, shift := is_r_i(args); ok {
-			_ = shift
-			// Using MOV (wide immediate) here (which is an alias for MOVZ)
-			templ := "sf	1	0	1	0	0	1	0	1	hw	imm16	Rd"
-			templ = strings.ReplaceAll(templ, "sf", "1")
-			templ = strings.ReplaceAll(templ, "hw", "0\t0")
-			return assem_r_i(templ, rd, "imm16", imm), 0, nil
+		} else if ok, rd, _imm, shift := is_r_i(args); ok {
+			imm := uint(_imm)
+			if shift == 0 && imm >= 0x10000 {
+				if imm & ^uint(0xffff0000) == 0 {
+					shift = 16
+				} else if imm & ^uint(0xffff00000000) == 0 {
+					shift = 32
+				} else if uint(imm) & ^uint(0xffff000000000000) == 0 {
+					shift = 48
+				}
+				imm = imm >> shift
+			}
+			hw := (shift >> 4) & 3 // 0 (the default), 16, 32 or 48, encoded in the "hw" field as <shift>/16.
+			if hw<<4 == shift && 0 <= imm && imm < 0x10000 {
+				// MOV <Xd>, #<imm>
+				// is equivalent to
+				// MOVZ <Xd>, #<imm16>, LSL #<shift>
+				templ := "sf	1	0	1	0	0	1	0	1	hw	imm16	Rd"
+				templ = strings.ReplaceAll(templ, "sf", "1")
+				templ = strings.ReplaceAll(templ, "hw", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(hw), 2)))
+				return assem_r_i(templ, rd, "imm16", int(imm)), 0, nil
+			}
 		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
 			// MOV <Zd>.<T>, <Pv>/M, <Zn>.<T>
 			//   is equivalent to
@@ -2544,7 +2559,7 @@ func is_r_i(args []string) (ok bool, rd int, imm, shift int) {
 			if ok, imm := getImm(args[1]); ok {
 				if len(args) == 4 && args[2] == "lsl" {
 					if ok, sh := getImm(args[3]); ok {
-						if sh == 0 || sh == 12 {
+						if sh == 0 || sh == 12 || sh == 16 || sh == 32 || sh == 48 {
 							return true, rd, imm, sh
 						}
 					}
