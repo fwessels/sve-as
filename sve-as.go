@@ -1069,6 +1069,57 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
 			return assem_r_ri(templ, rd, rn, "immr", immr, 0), 0, nil
 		}
+	case "bfm": // Bitfield Move
+		// use preferred assembly, either one of: bfc, bfi, and bfxil.
+	case "bfxil": // Bitfield Extract and Insert Low
+		if ok, rd, rn, lsb, width := is_r_rii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 64-lsb {
+			// BFXIL <Xd>, <Xn>, #<lsb>, #<width>
+			// is equivalent to
+			// BFM <Xd>, <Xn>, #<lsb>, #(<lsb>+<width>-1)
+			// and is the preferred disassembly when UInt(imms) >= UInt(immr).
+			templ := "sf	0	1	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			immr := uint(lsb)
+			imms := uint(lsb + width - 1)
+			if imms >= immr { // preferred disassembly when UInt(imms) >= UInt(immr)
+				templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
+				return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
+			}
+		}
+	case "bfc": // Bitfield Clear
+		if ok, rd, lsb, width := is_r_ii(args); ok && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 64-lsb {
+			// BFC <Xd>, #<lsb>, #<width>
+			// is equivalent to
+			// BFM <Xd>, XZR, #(-<lsb> MOD 64), #(<width>-1)
+			// and is the preferred disassembly when UInt(imms) < UInt(immr).
+			templ := "sf	0	1	1	0	0	1	1	0	N	immr	imms	1	1	1	1	1	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			immr := uint(-lsb) % 64
+			imms := uint(width - 1)
+			rn := getR("xzr")
+			if imms < immr { // preferred disassembly when UInt(imms) < UInt(immr)
+				templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
+				return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
+			}
+		}
+	case "bfi": // Bitfield Insert
+		if ok, rd, rn, lsb, width := is_r_rii(args); ok && rn != 31 && 0 <= lsb && lsb <= 63 && 1 <= width && width <= 64-lsb {
+			// BFI <Xd>, <Xn>, #<lsb>, #<width>
+			// is equivalent to
+			// BFM <Xd>, <Xn>, #(-<lsb> MOD 64), #(<width>-1)
+			// and is the preferred disassembly when UInt(imms) < UInt(immr).
+			templ := "sf	0	1	1	0	0	1	1	0	N	immr	imms	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "N", "1")
+			immr := uint(-lsb) % 64
+			imms := uint(width - 1)
+			if imms < immr { // preferred disassembly when UInt(imms) < UInt(immr)
+				templ = strings.ReplaceAll(templ, "imms", fmt.Sprintf("%0*s", 6, strconv.FormatInt(int64(imms), 2)))
+				return assem_r_ri(templ, rd, rn, "immr", int(immr), 0), 0, nil
+			}
+		}
 	case "scvtf":
 		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
 			if T == "s" {
