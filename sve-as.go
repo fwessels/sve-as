@@ -520,8 +520,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_ri(templ, rd, rn, "imm6", imm, 0), 0, nil
 		}
 	case "adr":
-		if ok, rd, imm, shift := is_r_i(args); ok {
-			_ = shift
+		if ok, rd, imm, shift := is_r_i(args); ok && shift == 0 && -1<<20 <= imm && imm < 1<<20 {
 			if imm < 0 {
 				imm = (1 << 21) + imm
 			}
@@ -912,8 +911,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	case "rdvl":
-		if ok, rd, imm, shift := is_r_i(args); ok {
-			_ = shift
+		if ok, rd, imm, shift := is_r_i(args); ok && shift == 0 && -32 <= imm && imm <= 31 {
+			if imm < 0 {
+				imm = (1 << 6) + imm
+			}
 			templ := "0	0	0	0	0	1	0	0	1	0	1	1	1	1	1	1	0	1	0	1	0	imm6	Rd"
 			return assem_r_i(templ, rd, "imm6", imm), 0, nil
 		}
