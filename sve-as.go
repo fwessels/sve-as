@@ -1748,6 +1748,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Rs", "Rm")
 			return assem_r_rr(templ, rt, rn, rs, "", 0), 0, nil
 		}
+	case "svc":
+		if ok, imm := is_i(args); ok && 0 <= imm && imm < 0x10000 {
+			templ := "1	1	0	1	0	1	0	0	0	0	0	imm16	0	0	0	0	1"
+			return assem_i(templ, "imm16", imm), 0, nil
+		}
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)
@@ -2585,6 +2590,15 @@ func is_z_ri(args []string) (ok bool, zd, rn, imm int, T string) {
 	return
 }
 
+func is_i(args []string) (ok bool, imm int) {
+	if len(args) == 1 {
+		if ok, imm := getImm(args[0]); ok {
+			return true, imm
+		}
+	}
+	return
+}
+
 func is_r_i(args []string) (ok bool, rd int, imm, shift int) {
 	if len(args) == 2 || len(args) == 4 {
 		rd = getR(args[0])
@@ -3071,6 +3085,22 @@ func assem_z_r(template string, zd, rn int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
 	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_i(template string, immPttrn string, imm int) uint32 {
+	opcode := template
+	switch immPttrn {
+	case "imm16":
+		opcode = strings.ReplaceAll(opcode, "imm16", fmt.Sprintf("%0*s", 16, strconv.FormatUint(uint64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)

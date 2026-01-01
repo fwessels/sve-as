@@ -233,6 +233,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xb34a03e5 // bfc x5, #54, #1"},
 		{"    WORD $0xb37eefe5 // bfc x5, #2, #60"},
 		{"    WORD $0xb37eed45 // bfi x5, x10, #2, #60"},
+		{"    WORD $0xd4001001 // svc #0x80"},
 		{"    WORD $0xc8a07c01 // cas    x0, x1, [x0]"},
 		{"    WORD $0xc8e27c23 // casa   x2, x3, [x1]"},
 		{"    WORD $0xc8e4fc45 // casal  x4, x5, [x2]"},
