@@ -2044,9 +2044,12 @@ func is_r_rr(args []string) (ok bool, rd, rn, rm, shift, imm int) {
 		}
 	} else if len(args) == 5 {
 		rd, rn, rm = getR(args[0]), getR(args[1]), getR(args[2])
-		shift = getShift(args[3])
-		ok, imm = getImm(args[4])
-		return
+		if rd != -1 && rn != -1 && rm != -1 {
+			shift = getShift(args[3])
+			if ok, imm := getImm(args[4]); ok {
+				return true, rd, rn, rm, shift, imm
+			}
+		}
 	}
 	return
 }
