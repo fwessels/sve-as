@@ -36,6 +36,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
+		} else if ok, rd, rn, rm, option, amount := is_r_rr_ext(args); ok {
+			templ := "sf	0	0	0	1	0	1	1	0	0	1	Rm	option	imm3	Rn	Rd"
+			templ = strings.ReplaceAll(templ, "sf", "1")
+			templ = strings.ReplaceAll(templ, "option", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(option), 2)))
+			return assem_r_rr(templ, rd, rn, rm, "imm3", amount), 0, nil
 		} else if ok, rd, rn, imm, shift := is_r_ri(args); ok && 0 <= imm && imm <= 4095 {
 			templ := "sf	0	0	1	0	0	0	1	0	sh	imm12	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
@@ -1965,7 +1970,7 @@ func getShift(in string) int {
 	// case "RESERVED"
 	// return 3
 	default:
-		fmt.Println("Invalid shift type: ", in)
+		// just ignore (other extensions such as uxtb/uxth etc are also valid)
 		return -1
 	}
 }
@@ -2008,6 +2013,30 @@ func computeShiftSpecifier(imm uint, reverse bool, T string) (int, string) {
 	panic(fmt.Sprintf("computeTypeSpecifier: invalid immediate %d and %s combination", imm, T))
 }
 
+func getExtend(in string) int {
+	switch strings.ToUpper(in) {
+	case "UXTB":
+		return 0b000
+	case "UXTH":
+		return 0b001
+	case "UXTW":
+		return 0b010
+	case "LSL", "UXTX":
+		return 0b011
+	case "SXTB":
+		return 0b100
+	case "SXTH":
+		return 0b101
+	case "SXTW":
+		return 0b110
+	case "SXTX":
+		return 0b111
+	default:
+		// just ignore (other extensions such as lsl/lsr etc are also valid)
+		return -1
+	}
+}
+
 func is_p(args []string) (ok bool, pd int, T string) {
 	if len(args) >= 1 {
 		pd, T = getPdes(args[0])
@@ -2042,17 +2071,35 @@ func is_rr(args []string) (ok bool, rn, rm int) {
 }
 
 func is_r_rr(args []string) (ok bool, rd, rn, rm, shift, imm int) {
-	if len(args) == 3 {
+	if len(args) >= 3 {
 		rd, rn, rm = getR(args[0]), getR(args[1]), getR(args[2])
 		if rd != -1 && rn != -1 && rm != -1 {
-			return true, rd, rn, rm, 0, 0
+			if len(args) == 3 {
+				return true, rd, rn, rm, 0, 0
+			} else if len(args) == 5 {
+				shift = getShift(args[3])
+				if shift != -1 {
+					ok, imm = getImm(args[4])
+					return
+				}
+			}
 		}
-	} else if len(args) == 5 {
+	}
+	return
+}
+
+func is_r_rr_ext(args []string) (ok bool, rd, rn, rm, option, amount int) {
+	if len(args) >= 4 {
 		rd, rn, rm = getR(args[0]), getR(args[1]), getR(args[2])
 		if rd != -1 && rn != -1 && rm != -1 {
-			shift = getShift(args[3])
-			if ok, imm := getImm(args[4]); ok {
-				return true, rd, rn, rm, shift, imm
+			option = getExtend(args[3])
+			if option != -1 {
+				if len(args) == 4 {
+					return true, rd, rn, rm, option, 0
+				} else {
+					ok, amount = getImm(args[4])
+					return
+				}
 			}
 		}
 	}
@@ -2122,8 +2169,10 @@ func is_r_r(args []string) (ok bool, rd, rn, shift, imm int) {
 	} else if len(args) == 4 {
 		rd, rn = getR(args[0]), getR(args[1])
 		shift = getShift(args[2])
-		ok, imm = getImm(args[3])
-		return true, rd, rn, shift, imm
+		if shift != -1 {
+			ok, imm = getImm(args[3])
+			return
+		}
 	}
 	return
 }
@@ -2845,6 +2894,8 @@ func assem_r_rr(template string, rd, rn, rm int, immPttrn string, imm int) uint3
 	switch immPttrn {
 	case "":
 		// ignore
+	case "imm3":
+		opcode = strings.ReplaceAll(opcode, "imm3", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(imm), 2)))
 	case "imm6":
 		opcode = strings.ReplaceAll(opcode, "imm6", fmt.Sprintf("%0*s", 6, strconv.FormatUint(uint64(imm), 2)))
 	default:
