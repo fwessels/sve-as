@@ -22,6 +22,19 @@ import (
 	"strings"
 )
 
+func PassThrough(ins string) (string, bool) {
+	if strings.TrimSpace(ins) == "" {
+		return "", false
+	}
+	mnem := strings.Fields(ins)[0]
+	switch strings.ToLower(mnem) {
+	case "b", "beq", "bne", "bcc", "bcs", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
+		"b.eq", "b.ne", "b.cc", "b.cs", "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls", "b.ge", "b.lt", "b.gt", "b.le", "b.al", "b.nv":
+		return strings.ToUpper(mnem) + " " + strings.Join(strings.Fields(ins)[1:], " "), true
+	}
+	return "", false
+}
+
 func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	mnem := strings.Fields(ins)[0]
 	args := strings.Fields(ins)[1:]

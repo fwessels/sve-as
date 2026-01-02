@@ -43,19 +43,23 @@ func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDW
 			// Intentionally ignore (skip full line of comments)
 		} else if regexp.MustCompile(`(?:WORD \$0x[0-9a-f]{8}|DWORD \$0x[0-9a-f]{16})\s*//`).MatchString(line) {
 			instruction := strings.Split(line, "//")[1]
-
-			opcode, opcode2, err := sve_as.Assemble(strings.Split(instruction, "/*")[0])
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
-			}
-
-			if opcode2 == 0 {
-				line = fmt.Sprintf("    WORD $0x%08x %s//%s", opcode, align, instruction)
+			ins := strings.Split(instruction, "/*")[0]
+			if pt, ok := sve_as.PassThrough(ins); ok {
+				line = "    " + pt
 			} else {
-				oc64 := uint64(opcode2)<<32 | uint64(opcode)
-				line = fmt.Sprintf("    DWORD $0x%016x //%s", oc64, instruction)
-				containsDWordsMap[routineName] = true
+				opcode, opcode2, err := sve_as.Assemble(ins)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+
+				if opcode2 == 0 {
+					line = fmt.Sprintf("    WORD $0x%08x %s//%s", opcode, align, instruction)
+				} else {
+					oc64 := uint64(opcode2)<<32 | uint64(opcode)
+					line = fmt.Sprintf("    DWORD $0x%016x //%s", oc64, instruction)
+					containsDWordsMap[routineName] = true
+				}
 			}
 		}
 
@@ -84,17 +88,21 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 			strings.HasPrefix(strings.TrimSpace(line), "//") ||
 			strings.HasSuffix(line, ":") {
 		} else {
-			opcode, opcode2, err := sve_as.Assemble(line)
-			if err != nil {
-				fmt.Printf("'%s'\n", line)
-				fmt.Println(err)
-				os.Exit(2)
-			}
-			if opcode2 == 0 {
-				line = fmt.Sprintf("    WORD $0x%08x // %s", opcode, strings.TrimSpace(line))
+			if pt, ok := sve_as.PassThrough(line); ok {
+				line = "    " + pt
 			} else {
-				oc64 := uint64(opcode2)<<32 | uint64(opcode)
-				line = fmt.Sprintf("    DWORD $0x%016x // %s", oc64, strings.TrimSpace(line))
+				opcode, opcode2, err := sve_as.Assemble(line)
+				if err != nil {
+					fmt.Printf("'%s'\n", line)
+					fmt.Println(err)
+					os.Exit(2)
+				}
+				if opcode2 == 0 {
+					line = fmt.Sprintf("    WORD $0x%08x // %s", opcode, strings.TrimSpace(line))
+				} else {
+					oc64 := uint64(opcode2)<<32 | uint64(opcode)
+					line = fmt.Sprintf("    DWORD $0x%016x // %s", oc64, strings.TrimSpace(line))
+				}
 			}
 		}
 		assembled.WriteString(line + comments + "\n")
@@ -138,24 +146,32 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 			return
 		}
 
+		getNextOpcode := func(scan *bufio.Scanner) (ophex, instr string) {
+			for scan.Scan() {
+				flds := strings.Fields(scan.Text())
+				if len(flds) >= 4 {
+					if _, err := hex.DecodeString(flds[2]); err == nil {
+						ophex = flds[2]
+						instr = strings.Join(flds[3:], " ")
+						return
+					}
+				}
+			}
+			return "", ""
+		}
 		// replace opcodes with plan9s instructions
 		plan9s := strings.Builder{}
 		scanner := bufio.NewScanner(bytes.NewReader([]byte(opcodes)))
 		scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
 		for lineno := 0; scanner.Scan(); lineno++ {
 			line := scanner.Text()
-			if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
-				var ophex, instr string
-				for scanObjdump.Scan() {
-					flds := strings.Fields(scanObjdump.Text())
-					if len(flds) >= 4 {
-						if _, err := hex.DecodeString(flds[2]); err == nil {
-							ophex = flds[2]
-							instr = strings.Join(flds[3:], " ")
-							break
-						}
-					}
+			if pt, ok := sve_as.PassThrough(line); ok {
+				_, instr := getNextOpcode(scanObjdump)
+				if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
+					panic("out of sync")
 				}
+			} else if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
+				ophex, instr := getNextOpcode(scanObjdump)
 				if strings.TrimSpace(line)[len("WORD $0x"):len("WORD $0x")+8] == ophex {
 					if instr == "?" {
 						// NOP -- keep existing line
@@ -165,7 +181,6 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 				} else {
 					panic("out of sync")
 				}
-
 			} else if strings.HasPrefix(strings.TrimSpace(line), "DWORD $0x") {
 				panic("handle case")
 			}
