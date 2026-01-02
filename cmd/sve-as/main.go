@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"os"
@@ -65,13 +66,13 @@ func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDW
 	return
 }
 
-func asm2s(buf []byte, plan9s bool) (out string, err error) {
+func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 	assembled := strings.Builder{}
 	scanner := bufio.NewScanner(bytes.NewReader(buf))
 
 	for lineno := 0; scanner.Scan(); lineno++ {
 		line := scanner.Text()
-		fmt.Println(lineno, line)
+		// fmt.Println(lineno, line)
 		parts := strings.Split(line, "//")
 		var comments string
 		if len(parts) == 2 {
@@ -90,18 +91,20 @@ func asm2s(buf []byte, plan9s bool) (out string, err error) {
 				os.Exit(2)
 			}
 			if opcode2 == 0 {
-				line = fmt.Sprintf("    WORD $0x%08x", opcode)
+				line = fmt.Sprintf("    WORD $0x%08x // %s", opcode, strings.TrimSpace(line))
 			} else {
 				oc64 := uint64(opcode2)<<32 | uint64(opcode)
-				line = fmt.Sprintf("    DWORD $0x%016x", oc64)
+				line = fmt.Sprintf("    DWORD $0x%016x // %s", oc64, strings.TrimSpace(line))
 			}
 		}
 		assembled.WriteString(line + comments + "\n")
 	}
 
-	out = assembled.String()
+	opcodes := assembled.String()
 
-	if plan9s {
+	if !toPlan9s {
+		out = opcodes
+	} else {
 		// Get GOROOT the same way the go tool does
 		goroot := runtime.GOROOT()
 		includeDir := filepath.Join(goroot, "pkg", "include")
@@ -116,7 +119,7 @@ func asm2s(buf []byte, plan9s bool) (out string, err error) {
 		defer os.Remove(srccode.Name())
 		defer os.Remove(objcode.Name())
 
-		if err = os.WriteFile(srccode.Name(), []byte(out), 0666); err != nil {
+		if err = os.WriteFile(srccode.Name(), []byte(opcodes), 0666); err != nil {
 			return
 		}
 		cmd := exec.Command(
@@ -136,19 +139,40 @@ func asm2s(buf []byte, plan9s bool) (out string, err error) {
 		}
 
 		// replace opcodes with plan9s instructions
-		scanner := bufio.NewScanner(bytes.NewReader(objdump))
+		plan9s := strings.Builder{}
+		scanner := bufio.NewScanner(bytes.NewReader([]byte(opcodes)))
+		scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
 		for lineno := 0; scanner.Scan(); lineno++ {
 			line := scanner.Text()
-			flds := strings.Fields(line)
-			if len(flds) >= 4 {
-				opcode := flds[2]
-				if opcode != "00000000" {
-					instr := strings.Join(flds[3:], " ")
-					out = strings.ReplaceAll(out,
-						fmt.Sprintf("WORD $0x%s", opcode), instr)
+			if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
+				var ophex, instr string
+				for scanObjdump.Scan() {
+					flds := strings.Fields(scanObjdump.Text())
+					if len(flds) >= 4 {
+						if _, err := hex.DecodeString(flds[2]); err == nil {
+							ophex = flds[2]
+							instr = strings.Join(flds[3:], " ")
+							break
+						}
+					}
 				}
+				if strings.TrimSpace(line)[len("WORD $0x"):len("WORD $0x")+8] == ophex {
+					if instr == "?" {
+						// NOP -- keep existing line
+					} else {
+						line = instr
+					}
+				} else {
+					panic("out of sync")
+				}
+
+			} else if strings.HasPrefix(strings.TrimSpace(line), "DWORD $0x") {
+				panic("handle case")
 			}
+			plan9s.WriteString(line + "\n")
 		}
+
+		out = plan9s.String()
 	}
 
 	return
