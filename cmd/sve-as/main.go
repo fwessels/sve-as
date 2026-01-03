@@ -84,25 +84,25 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 			comments = parts[0][len(line):] + "//" + parts[1]
 		}
 		if strings.TrimSpace(line) == "" ||
-			strings.ToLower(line) != line ||
+			strings.ToLower(line) != line /* line contains any upper case letters? */ ||
 			strings.HasPrefix(strings.TrimSpace(line), "//") ||
+			strings.HasPrefix(strings.TrimSpace(line), "#include") ||
 			strings.HasSuffix(line, ":") {
+			// pass along verbatim
+		} else if pt, ok := sve_as.PassThrough(line); ok {
+			line = "    " + pt
 		} else {
-			if pt, ok := sve_as.PassThrough(line); ok {
-				line = "    " + pt
+			opcode, opcode2, err := sve_as.Assemble(line)
+			if err != nil {
+				fmt.Printf("'%s'\n", line)
+				fmt.Println(err)
+				os.Exit(2)
+			}
+			if opcode2 == 0 {
+				line = fmt.Sprintf("    WORD $0x%08x // %s", opcode, strings.TrimSpace(line))
 			} else {
-				opcode, opcode2, err := sve_as.Assemble(line)
-				if err != nil {
-					fmt.Printf("'%s'\n", line)
-					fmt.Println(err)
-					os.Exit(2)
-				}
-				if opcode2 == 0 {
-					line = fmt.Sprintf("    WORD $0x%08x // %s", opcode, strings.TrimSpace(line))
-				} else {
-					oc64 := uint64(opcode2)<<32 | uint64(opcode)
-					line = fmt.Sprintf("    DWORD $0x%016x // %s", oc64, strings.TrimSpace(line))
-				}
+				oc64 := uint64(opcode2)<<32 | uint64(opcode)
+				line = fmt.Sprintf("    DWORD $0x%016x // %s", oc64, strings.TrimSpace(line))
 			}
 		}
 		assembled.WriteString(line + comments + "\n")
