@@ -29,6 +29,8 @@ func TestAsm2s(t *testing.T) {
 
 const (
 	asm = `
+#include "textflag.h"
+
 TEXT ·snippets(SB), $0-8
 	ldr x1, [arg0+0(fp)]
 	ldr x2, [arg1+8(fp)]
@@ -37,6 +39,7 @@ loop:
 	cmp x3, x4
 	beq done
 	adr x1, loop
+	adr x3, $·const(sb)
     mov x2, #0x6e3a
     movk x2, #0x4f5d, lsl #16
     movk x2, #0xfedc, lsl #32
@@ -45,8 +48,13 @@ loop:
 done:
     str x2, [ret+16(fp)]
 	ret
+
+DATA ·const+0x000(SB)/8, $0x0102030405060708
+GLOBL ·const(SB), (NOPTR+RODATA), $16
 `
 	opcodes = `
+#include "textflag.h"
+
 TEXT ·snippets(SB), $0-8
 	MOVD arg0+0(FP), R1
 	MOVD arg1+8(FP), R2
@@ -55,6 +63,7 @@ loop:
 	WORD $0xeb04007f // cmp x3, x4
 	BEQ done
 	ADR loop, R1
+	MOVD $·const(SB), R3
 	WORD $0xd28dc742 // mov x2, #0x6e3a
 	WORD $0xf2a9eba2 // movk x2, #0x4f5d, lsl #16
 	WORD $0xf2dfdb82 // movk x2, #0xfedc, lsl #32
@@ -63,8 +72,13 @@ loop:
 done:
 	MOVD R2, ret+16(FP)
 	WORD $0xd65f03c0 // ret
+
+DATA ·const+0x000(SB)/8, $0x0102030405060708
+GLOBL ·const(SB), (NOPTR+RODATA), $16
 `
 	plan9s = `
+#include "textflag.h"
+
 TEXT ·snippets(SB), $0-8
 	MOVD arg0+0(FP), R1
 	MOVD arg1+8(FP), R2
@@ -73,6 +87,7 @@ loop:
 	CMP R4, R3
 	BEQ done
 	ADR loop, R1
+	MOVD $·const(SB), R3
 	MOVD $28218, R2
 	MOVK $(20317<<16), R2
 	MOVK $(65244<<32), R2
@@ -81,5 +96,8 @@ loop:
 done:
 	MOVD R2, ret+16(FP)
 	RET
+
+DATA ·const+0x000(SB)/8, $0x0102030405060708
+GLOBL ·const(SB), (NOPTR+RODATA), $16
 `
 )

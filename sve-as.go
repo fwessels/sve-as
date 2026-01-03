@@ -67,6 +67,17 @@ func PassThrough(ins string) (string, bool) {
 		if allCaps(mnem) {
 			return strings.TrimSpace(ins), true
 		} else if len(args) == 2 {
+			lbl := args[1]
+			if strings.HasPrefix(lbl, "$·") && strings.HasSuffix(lbl, "(sb)") {
+				// for absolute addresses, use MOVD instruction
+				lbl = strings.ReplaceAll(lbl, "(sb)", "(SB)")
+				return "MOVD" + " " + lbl + ", " + reg2Plan9s(args[0]), true
+			} else {
+				// for PC-relative addresses
+				return strings.ToUpper(mnem) + " " + lbl + ", " + reg2Plan9s(args[0]), true
+			}
+		}
+
 	case "movd":
 		if allCaps(mnem) {
 			return strings.TrimSpace(ins), true
