@@ -2275,9 +2275,16 @@ func is_r_ri(args []string) (ok bool, rd, rn, imm, shift int) {
 	if len(args) >= 3 {
 		rd, rn = getR(args[0]), getR(args[1])
 		if rd != -1 && rn != -1 {
-			if ok, imm := getImm(args[2]); ok {
-				if len(args) >= 4 && args[3] == "LSL" && args[4] == "#12" {
-					return true, rd, rn, imm, 1
+			if ok_, imm_ := getImm(args[2]); ok_ {
+				imm = imm_
+				if len(args) == 5 && strings.ToUpper(args[3]) == "LSL" {
+					if ok, shift = getImm(args[4]); ok {
+						if shift == 12 || shift == 0 {
+							return true, rd, rn, imm, shift / 12
+						} else {
+							return false, rd, rn, imm, 0
+						}
+					}
 				}
 				return true, rd, rn, imm, 0
 			}
