@@ -186,7 +186,7 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 					if instr == "?" {
 						// NOP -- keep existing line
 					} else {
-						line = instr
+						line = "    " + instr
 					}
 				} else {
 					panic("out of sync")
