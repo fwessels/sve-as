@@ -51,12 +51,27 @@ func PassThrough(ins string) (string, bool) {
 	}
 
 	switch strings.ToLower(mnem) {
+	case "ldr", "str":
+		if len(args) == 2 && strings.HasSuffix(args[1], "(fp)]") {
+			lbl := args[1]
+			lbl = strings.ReplaceAll(lbl, "(fp)", "(FP)")
+			lbl = strings.NewReplacer("[", "", "]", "").Replace(lbl)
+			if mnem == "ldr" {
+				return "MOVD" + " " + lbl + ", " + reg2Plan9s(args[0]), true
+			} else {
+				return "MOVD" + " " + reg2Plan9s(args[0]) + ", " + lbl, true
+			}
+		}
+
 	case "adr":
 		if allCaps(mnem) {
 			return strings.TrimSpace(ins), true
 		} else if len(args) == 2 {
-			return strings.ToUpper(mnem) + " " + args[1] + ", " + reg2Plan9s(args[0]), true
+	case "movd":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
 		}
+
 	case "b", "beq", "bne", "bcc", "bcs", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
 		"b.eq", "b.ne", "b.cc", "b.cs", "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls", "b.ge", "b.lt", "b.gt", "b.le", "b.al", "b.nv":
 		if allCaps(mnem) {
@@ -1851,6 +1866,8 @@ func getR(r string) int {
 		} else if num, err := strconv.ParseInt(r[1:], 10, 32); err == nil && num < 32 {
 			return int(num)
 		}
+	} else if r == "sp" {
+		return 31
 	}
 	return -1
 }

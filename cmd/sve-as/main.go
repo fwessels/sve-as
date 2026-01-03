@@ -169,7 +169,15 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 			if pt, ok := sve_as.PassThrough(line); ok {
 				_, instr := getNextOpcode(scanObjdump)
 				// fmt.Println(pt, "|", instr)
-				if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
+				if strings.Fields(pt)[0] == "MOVD" && strings.Fields(instr)[0] == "ADRP" {
+					// MOVD $·const(SB), R3 becomes two instructions:
+					//   ....  90000003        ADRP 0(PC), R3          [0:8]R_ADDRARM64:<unlinkable>.const
+					//   ....  91000063        ADD $0, R3, R3
+					_, instr := getNextOpcode(scanObjdump)
+					if strings.Fields(instr)[0] != "ADD" {
+						panic("out of sync")
+					}
+				} else if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
 					panic("out of sync")
 				}
 			} else if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {

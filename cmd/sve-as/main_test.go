@@ -30,6 +30,8 @@ func TestAsm2s(t *testing.T) {
 const (
 	asm = `
 TEXT ·snippets(SB), $0-8
+	ldr x1, [arg0+0(fp)]
+	ldr x2, [arg1+8(fp)]
     add x0, x1, x2
 loop:
 	cmp x3, x4
@@ -41,10 +43,13 @@ loop:
     movk x2, #0x1234, lsl #48
 	add z0.s, z0.s, z0.s
 done:
+    str x2, [ret+16(fp)]
 	ret
 `
 	opcodes = `
 TEXT ·snippets(SB), $0-8
+	MOVD arg0+0(FP), R1
+	MOVD arg1+8(FP), R2
 	WORD $0x8b020020 // add x0, x1, x2
 loop:
 	WORD $0xeb04007f // cmp x3, x4
@@ -56,10 +61,13 @@ loop:
 	WORD $0xf2e24682 // movk x2, #0x1234, lsl #48
 	WORD $0x04a00000 // add z0.s, z0.s, z0.s
 done:
+	MOVD R2, ret+16(FP)
 	WORD $0xd65f03c0 // ret
 `
 	plan9s = `
 TEXT ·snippets(SB), $0-8
+	MOVD arg0+0(FP), R1
+	MOVD arg1+8(FP), R2
 	ADD R2, R1, R0
 loop:
 	CMP R4, R3
@@ -71,6 +79,7 @@ loop:
 	MOVK $(4660<<48), R2
 	WORD $0x04a00000 // add z0.s, z0.s, z0.s
 done:
+	MOVD R2, ret+16(FP)
 	RET
 `
 )
