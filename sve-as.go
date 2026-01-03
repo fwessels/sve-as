@@ -20,17 +20,50 @@ import (
 	"math/bits"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 func PassThrough(ins string) (string, bool) {
+	allCaps := func(s string) (hasLetter bool) {
+		for _, r := range s {
+			if unicode.IsLetter(r) {
+				hasLetter = true
+				if !unicode.IsUpper(r) {
+					return false
+				}
+			}
+		}
+		return
+	}
+	reg2Plan9s := func(reg string) string {
+		if strings.HasPrefix(reg, "x") {
+			return strings.ReplaceAll(reg, "x", "R")
+		}
+		return reg
+	}
 	if strings.TrimSpace(ins) == "" {
 		return "", false
 	}
 	mnem := strings.Fields(ins)[0]
+	args := strings.Fields(ins)[1:]
+	for i := range args {
+		args[i] = strings.TrimSpace(strings.ReplaceAll(args[i], ",", ""))
+	}
+
 	switch strings.ToLower(mnem) {
+	case "adr":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else if len(args) == 2 {
+			return strings.ToUpper(mnem) + " " + args[1] + ", " + reg2Plan9s(args[0]), true
+		}
 	case "b", "beq", "bne", "bcc", "bcs", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
 		"b.eq", "b.ne", "b.cc", "b.cs", "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls", "b.ge", "b.lt", "b.gt", "b.le", "b.al", "b.nv":
-		return strings.ToUpper(mnem) + " " + strings.Join(strings.Fields(ins)[1:], " "), true
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else {
+			return strings.ToUpper(mnem) + " " + strings.Join(strings.Fields(ins)[1:], " "), true
+		}
 	}
 	return "", false
 }

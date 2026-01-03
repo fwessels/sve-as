@@ -135,17 +135,18 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 			"-o", objcode.Name(), "-I", includeDir,
 			srccode.Name(),
 		)
-		if err = cmd.Run(); err != nil {
-			return
+		if goasm, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("go tool asm failed: %w\noutput:\n%s", err, goasm)
 		}
 
 		// Capture stdout + stderr
 		var objdump []byte
 		if objdump, err = exec.Command("go", "tool", "objdump", objcode.Name()).
 			CombinedOutput(); err != nil {
-			return
+			return "", fmt.Errorf("go tool asm failed: %w\noutput:\n%s", err, objdump)
 		}
 
+		// fmt.Println(string(objdump))
 		getNextOpcode := func(scan *bufio.Scanner) (ophex, instr string) {
 			for scan.Scan() {
 				flds := strings.Fields(scan.Text())
@@ -159,14 +160,15 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 			}
 			return "", ""
 		}
-		// replace opcodes with plan9s instructions
 		plan9s := strings.Builder{}
 		scanner := bufio.NewScanner(bytes.NewReader([]byte(opcodes)))
 		scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
+		// replace opcodes with plan9s instructions
 		for lineno := 0; scanner.Scan(); lineno++ {
 			line := scanner.Text()
 			if pt, ok := sve_as.PassThrough(line); ok {
 				_, instr := getNextOpcode(scanObjdump)
+				// fmt.Println(pt, "|", instr)
 				if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
 					panic("out of sync")
 				}

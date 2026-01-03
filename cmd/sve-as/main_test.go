@@ -31,8 +31,10 @@ const (
 	asm = `
 TEXT ·snippets(SB), $0-8
     add x0, x1, x2
+loop:
 	cmp x3, x4
 	beq done
+	adr x1, loop
     mov x2, #0x6e3a
     movk x2, #0x4f5d, lsl #16
     movk x2, #0xfedc, lsl #32
@@ -44,8 +46,10 @@ done:
 	opcodes = `
 TEXT ·snippets(SB), $0-8
 	WORD $0x8b020020 // add x0, x1, x2
+loop:
 	WORD $0xeb04007f // cmp x3, x4
 	BEQ done
+	ADR loop, R1
 	WORD $0xd28dc742 // mov x2, #0x6e3a
 	WORD $0xf2a9eba2 // movk x2, #0x4f5d, lsl #16
 	WORD $0xf2dfdb82 // movk x2, #0xfedc, lsl #32
@@ -57,8 +61,10 @@ done:
 	plan9s = `
 TEXT ·snippets(SB), $0-8
 	ADD R2, R1, R0
+loop:
 	CMP R4, R3
 	BEQ done
+	ADR loop, R1
 	MOVD $28218, R2
 	MOVK $(20317<<16), R2
 	MOVK $(65244<<32), R2
