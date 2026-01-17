@@ -205,39 +205,41 @@ func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: sve-as <filename>")
-		os.Exit(1)
-	}
-
-	fname := strings.ToLower(os.Args[1])
-	isAsm, isS := strings.HasSuffix(fname, ".asm"), strings.HasSuffix(fname, ".s")
-	if !isAsm && !isS {
 		fmt.Println("Usage: sve-as <filename.s/.asm>")
 		os.Exit(1)
 	}
 
-	if buf, err := os.ReadFile(fname); err != nil {
-		fmt.Println("Error reading file: ", err)
-		os.Exit(1)
-	} else {
-		var processed string
-		var err error
-		if isAsm {
-			fmt.Printf("Processing %s", fname)
-			fname = strings.ReplaceAll(fname, ".asm", ".s")
-			fmt.Printf(" → %s\n", fname)
-			if processed, err = asm2s(buf, true); err != nil {
-				log.Fatal(err)
-			}
-		}
-		if isS {
-			fmt.Println("Processing", fname)
-			_, containsDWordsMap := assemble(buf, nil)
-			processed, _ = assemble(buf, &containsDWordsMap)
-		}
-		if err := os.WriteFile(fname, []byte(processed), 0644); err != nil {
-			fmt.Println("Error writing file: ", err)
+	for args := os.Args[1:]; len(args) > 0; args = args[1:] {
+		fname := strings.ToLower(args[0])
+		isAsm, isS := strings.HasSuffix(fname, ".asm"), strings.HasSuffix(fname, ".s")
+		if !isAsm && !isS {
+			fmt.Println("Usage: sve-as <filename.s/.asm>")
 			os.Exit(1)
+		}
+
+		if buf, err := os.ReadFile(fname); err != nil {
+			fmt.Println("Error reading file: ", err)
+			os.Exit(1)
+		} else {
+			var processed string
+			var err error
+			if isAsm {
+				fmt.Printf("Processing %s", fname)
+				fname = strings.ReplaceAll(fname, ".asm", ".s")
+				fmt.Printf(" → %s\n", fname)
+				if processed, err = asm2s(buf, true); err != nil {
+					log.Fatal(err)
+				}
+			}
+			if isS {
+				fmt.Println("Processing", fname)
+				_, containsDWordsMap := assemble(buf, nil)
+				processed, _ = assemble(buf, &containsDWordsMap)
+			}
+			if err := os.WriteFile(fname, []byte(processed), 0644); err != nil {
+				fmt.Println("Error writing file: ", err)
+				os.Exit(1)
+			}
 		}
 	}
 }
