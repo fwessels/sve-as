@@ -1882,7 +1882,6 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "U", map[bool]string{true: "1", false: "0"}[consec])
 			templ = strings.ReplaceAll(templ, "imm8l", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(imm&7), 2)))
 			templ = strings.ReplaceAll(templ, "imm8h", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64((imm>>3)&31), 2)))
-			fmt.Println(zd, zn, zm, imm, T)
 			return assem_z_zzi(templ, zd, map[bool]int{true: zn, false: zm}[consec], imm), 0, nil
 		}
 	}
