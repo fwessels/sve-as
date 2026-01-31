@@ -1861,6 +1861,22 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "1	1	0	1	0	1	0	0	0	0	0	imm16	0	0	0	0	1"
 			return assem_i(templ, "imm16", imm), 0, nil
 		}
+	case "aesd", "aese":
+		if ok, zd, zn, zm, T := is_z_zz(args); ok && strings.ToLower(T) == "b" && zd == zn {
+			templ := "0	1	0	0	0	1	0	1	0	0	1	0	0	0	1	0	1	1	1	0	0	U	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "U", map[bool]string{true: "1", false: "0"}[mnem == "aesd"])
+			templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+			templ = strings.ReplaceAll(templ, "Zm", "Zn")
+			return assem_z_z(templ, zd, zm), 0, nil
+		}
+	case "aesimc", "aesmc":
+		if ok, zd, zn, T := is_z_z(args); ok && strings.ToLower(T) == "b" && zd == zn {
+			templ := "0	1	0	0	0	1	0	1	0	0	1	0	0	0	0	0	1	1	1	0	0	U	0	0	0	0	0	Zdn"
+			templ = strings.ReplaceAll(templ, "U", map[bool]string{true: "1", false: "0"}[mnem == "aesimc"])
+			templ = strings.ReplaceAll(templ, "Zdn", "Zd")
+			return assem_z_z(templ, zd, -1), 0, nil
+		}
+
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)

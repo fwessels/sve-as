@@ -457,6 +457,10 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04ee47b5 // index z21.d, x29, #14"},
 		{"    WORD $0x05a43820 // insr z0.s, w1"},
 		{"    WORD $0x05e43841 // insr z1.d, x2"},
+		{"    WORD $0x4522e061 // aese z1.b, z1.b, z3.b"},
+		{"    WORD $0x4522e4c4 // aesd z4.b, z4.b, z6.b"},
+		{"    WORD $0x4520e009 // aesmc z9.b, z9.b"},
+		{"    WORD $0x4520e407 // aesimc z7.b, z7.b"},
 	}
 
 	for i, tc := range testCases {
