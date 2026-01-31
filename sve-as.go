@@ -1876,7 +1876,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Zdn", "Zd")
 			return assem_z_z(templ, zd, -1), 0, nil
 		}
-
+	case "ext":
+		if ok, zd, zn, zm, imm, consec, T := is_z_zzi(args); ok && strings.ToLower(T) == "b" && 0 <= imm && imm <= 255 {
+			templ := "0	0	0	0	0	1	0	1	0	U	1	imm8h	0	0	0	imm8l	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "U", map[bool]string{true: "1", false: "0"}[consec])
+			templ = strings.ReplaceAll(templ, "imm8l", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(imm&7), 2)))
+			templ = strings.ReplaceAll(templ, "imm8h", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64((imm>>3)&31), 2)))
+			fmt.Println(zd, zn, zm, imm, T)
+			return assem_z_zzi(templ, zd, map[bool]int{true: zn, false: zm}[consec], imm), 0, nil
+		}
 	}
 
 	return 0, 0, fmt.Errorf("unhandled instruction: %s", ins)
@@ -2432,6 +2440,33 @@ func is_z_zz(args []string) (ok bool, zd, zn, zm int, T string) {
 		zm, t3, _ = getZ(args[2])
 		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 {
 			return true, zd, zn, zm, t1
+		}
+	}
+	return
+}
+
+func is_z_zzi(args []string) (ok bool, zd, zn, zm, imm int, consec bool, T string) {
+	if len(args) == 4 {
+		var t1, t2, t3 string
+		zd, t1, _ = getZ(args[0])
+		consec = strings.HasPrefix(args[1], "{") && strings.HasSuffix(args[2], "}")
+		if consec {
+			zn, t2, _ = getZ(strings.ReplaceAll(args[1], "{", ""))
+			zm, t3, _ = getZ(strings.ReplaceAll(args[2], "}", ""))
+			if zn != zm-1 {
+				return false, -1, -1, -1, 0, false, ""
+			}
+		} else {
+			zn, t2, _ = getZ(args[1])
+			zm, t3, _ = getZ(args[2])
+			if zd != zn {
+				return false, -1, -1, -1, 0, false, ""
+			}
+		}
+		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 {
+			if ok, imm := getImm(args[3]); ok {
+				return true, zd, zn, zm, imm, consec, t1
+			}
 		}
 	}
 	return
@@ -3114,6 +3149,18 @@ func assem_z_zz(template string, zd, zn, zm int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z_zzi(template string, zdn, zm, imm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zm), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
