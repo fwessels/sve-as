@@ -261,6 +261,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x4830fc7a // caspl  x16, x17, x26, x27, [x3]"},
 		//
 		// vector instructions
+		{"    WORD $0x04723240 // mov z0.d, z18.d"},
 		{"    WORD $0x05e039e2 // mov z2.d, x15"},
 		{"    WORD $0x85804425 // ldr z5, [x1, #1, MUL VL]"},
 		{"    WORD $0x85804026 // ldr z6, [x1]"},

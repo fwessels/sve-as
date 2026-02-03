@@ -448,6 +448,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
 				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 				return assem_z_r(templ, zd, rn), 0, nil
+			} else if ok, zd, zn, T := is_z_z(args); ok && strings.ToLower(T) == "d" {
+				// MOV <Zd>.D, <Zn>.D
+				// is equivalent to
+				// ORR <Zd>.D, <Zn>.D, <Zn>.D
+				templ := "0	0	0	0	0	1	0	0	0	1	1	Zm	0	0	1	1	0	0	Zn	Zd"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				return assem_z_zz(templ, zd, zn, zn), 0, nil
 			} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
 				// MOV <Zd>.<T>, <Pv>/M, <Zn>.<T>
 				//   is equivalent to
