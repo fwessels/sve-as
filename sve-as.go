@@ -94,6 +94,13 @@ func PassThrough(ins string) (string, bool) {
 	return "", false
 }
 
+func If[T any](cond bool, thenVal, elseVal T) T {
+	if cond {
+		return thenVal
+	}
+	return elseVal
+}
+
 func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	mnem := strings.Fields(ins)[0]
 	args := strings.Fields(ins)[1:]
@@ -1928,6 +1935,21 @@ func getR(r string) int {
 		}
 	} else if r == "sp" {
 		return 31
+	}
+	return -1
+}
+
+func getV(v string) int {
+	// v0–v31 | 128 bits |  xFP/NEON
+	//     v0 | 128 bits | full SIMD register
+	//     d0 |  64 bits | lower half of v0
+	//     s0 |  32 bits | lower 32 bits
+	//     h0 |  16 bits | lower 16 bits
+	//     b0 |   8 bits | lower 8 bits
+	if len(v) > 0 && (v[0] == 'd') {
+		if num, err := strconv.ParseInt(v[1:], 10, 32); err == nil && num < 32 {
+			return int(num)
+		}
 	}
 	return -1
 }
