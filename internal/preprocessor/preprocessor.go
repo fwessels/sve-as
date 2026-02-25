@@ -50,6 +50,7 @@ func (p *Preprocessor) Process(filename string, r io.Reader, w io.Writer) error 
 	if err == nil {
 		filename = abs
 	}
+	stripTextflagComments := filepath.Base(filename) == "textflag.h"
 
 	if p.includeStackGuard[filename] {
 		// Prevent include cycles from exploding; you can change this behavior if you want
@@ -138,6 +139,13 @@ func (p *Preprocessor) Process(filename string, r io.Reader, w io.Writer) error 
 
 		if !cond.Active() {
 			continue
+		}
+
+		if stripTextflagComments {
+			trim := strings.TrimSpace(line)
+			if strings.HasPrefix(trim, "//") {
+				continue
+			}
 		}
 
 		expanded, err := p.expandLineForProcess(line)
