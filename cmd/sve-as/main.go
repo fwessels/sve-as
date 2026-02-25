@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	sve_as "github.com/fwessels/sve-as"
+	"github.com/fwessels/sve-as/internal/preprocessor"
 )
 
 func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDWordsMap map[string]bool) {
@@ -70,9 +71,46 @@ func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDW
 	return
 }
 
-func asm2s(buf []byte, toPlan9s bool) (out string, err error) {
+func NewPreprocessor(fname string) (pp *preprocessor.Preprocessor, err error) {
+	pp = preprocessor.NewPreprocessor()
+	pp.KeepLineComments = false // true for `// textflag.h:10` references
+	if fname != "" {
+		pp.IncludeDirs = append(pp.IncludeDirs, filepath.Dir(fname))
+	}
+
+	cmd := exec.Command("go", "env", "GOROOT")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err = cmd.Run(); err != nil {
+		return nil, err
+	}
+
+	goroot := strings.TrimSpace(out.String())
+	runtimePath := filepath.Join(goroot, "src", "runtime")
+	pp.IncludeDirs = append(pp.IncludeDirs, runtimePath)
+
+	// // Apply -D defines
+	// for _, def := range D {
+	// 	name, val := asmpp.ParseDefine(def)
+	// 	pp.DefineObject(name, val)
+	// }
+	return
+}
+
+func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
+
+	var pp *preprocessor.Preprocessor
+	if pp, err = NewPreprocessor(fname); err != nil {
+		return "", err
+	}
+
+	preprocessed := bytes.Buffer{}
+	if err := pp.Process(fname, bytes.NewReader(buf), &preprocessed); err != nil {
+		return "", err
+	}
+
 	assembled := strings.Builder{}
-	scanner := bufio.NewScanner(bytes.NewReader(buf))
+	scanner := bufio.NewScanner(&preprocessed)
 
 	for lineno := 0; scanner.Scan(); lineno++ {
 		line := scanner.Text()
@@ -227,7 +265,7 @@ func main() {
 				fmt.Printf("Processing %s", fname)
 				fname = strings.ReplaceAll(fname, ".asm", ".s")
 				fmt.Printf(" → %s\n", fname)
-				if processed, err = asm2s(buf, true); err != nil {
+				if processed, err = asm2s(fname, buf, true); err != nil {
 					log.Fatal(err)
 				}
 			}
