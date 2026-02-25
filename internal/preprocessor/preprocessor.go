@@ -171,8 +171,38 @@ func (p *Preprocessor) Process(filename string, r io.Reader, w io.Writer) error 
 		}
 		return fmt.Errorf("%s: unclosed #ifdef or #ifndef", shortPath(filename))
 	}
-	_, err = w.Write(out.Bytes())
+	normalized := collapseExcessNewlines(out.Bytes())
+	_, err = w.Write(normalized)
 	return err
+}
+
+func collapseExcessNewlines(src []byte) []byte {
+	if len(src) == 0 {
+		return src
+	}
+	var b bytes.Buffer
+	nl := 0
+	flush := func() {
+		switch nl {
+		case 0:
+			// nothing
+		case 1, 2:
+			b.WriteString("\n")
+		default:
+			b.WriteByte('\n')
+		}
+		nl = 0
+	}
+	for _, ch := range src {
+		if ch == '\n' {
+			nl++
+			continue
+		}
+		flush()
+		b.WriteByte(ch)
+	}
+	flush()
+	return b.Bytes()
 }
 
 func (p *Preprocessor) expandLineForProcess(line string) (string, error) {
@@ -319,7 +349,7 @@ func readDirectiveLine(firstLine string, firstLineNo int, lr *lineReader) (fullL
 		}
 		lineNo++
 		if !isContinuationLine(next) {
-			return b.String(), lineNo-1, next, lineNo, true, false, nil
+			return b.String(), lineNo - 1, next, lineNo, true, false, nil
 		}
 		b.WriteByte('\n')
 		line = next
