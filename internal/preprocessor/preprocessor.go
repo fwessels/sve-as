@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -43,8 +44,8 @@ func (p *Preprocessor) DefineFunc(name string, params []string, body string) {
 	p.fn[name] = FnMacro{Params: params, Body: body}
 }
 
-// Process preprocesses file content and returns expanded output.
-func (p *Preprocessor) Process(filename string, src []byte) ([]byte, error) {
+// Process preprocesses file content and writes expanded output.
+func (p *Preprocessor) Process(filename string, r io.Reader, w io.Writer) error {
 	abs, err := p.resolveAsFile(filename, "")
 	if err == nil {
 		filename = abs
@@ -52,17 +53,15 @@ func (p *Preprocessor) Process(filename string, src []byte) ([]byte, error) {
 
 	if p.includeStackGuard[filename] {
 		// Prevent include cycles from exploding; you can change this behavior if you want
-		return nil, fmt.Errorf("include cycle detected at %q", filename)
+		return fmt.Errorf("include cycle detected at %q", filename)
 	}
 	p.includeStackGuard[filename] = true
 	defer delete(p.includeStackGuard, filename)
 
 	var out bytes.Buffer
-	sc := bufio.NewScanner(bytes.NewReader(src))
-	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	lr := newLineReader(r)
 
 	cond := newCondStack()
-	endsWithNewline := len(src) > 0 && src[len(src)-1] == '\n'
 
 	lineNo := 0
 	var pendingLine string
@@ -75,11 +74,19 @@ func (p *Preprocessor) Process(filename string, src []byte) ([]byte, error) {
 			lineNo = pendingLineNo
 			hasPending = false
 		} else {
-			if !sc.Scan() {
+			var ok bool
+			var err error
+			line, _, ok, err = lr.next()
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+				return err
+			}
+			if !ok {
 				break
 			}
 			lineNo++
-			line = sc.Text()
 		}
 
 		trim := strings.TrimSpace(line)
@@ -88,13 +95,16 @@ func (p *Preprocessor) Process(filename string, src []byte) ([]byte, error) {
 			if first >= 0 && idx > first {
 				after := strings.TrimSpace(line[idx:])
 				if isDirectivePrefix(after) {
-					return nil, fmt.Errorf("%s:%d: '#' must be first item on line", shortPath(filename), lineNo)
+					return fmt.Errorf("%s:%d: '#' must be first item on line", shortPath(filename), lineNo)
 				}
 			}
 		}
 		if strings.HasPrefix(trim, "#") {
 			startLineNo := lineNo
-			fullLine, endLineNo, nextLine, nextLineNo, ok, endedAtEOF := readDirectiveLine(line, lineNo, sc)
+			fullLine, endLineNo, nextLine, nextLineNo, ok, endedAtEOF, err := readDirectiveLine(line, lineNo, lr)
+			if err != nil {
+				return err
+			}
 			if !ok {
 				break
 			}
@@ -106,17 +116,17 @@ func (p *Preprocessor) Process(filename string, src []byte) ([]byte, error) {
 			}
 			fullTrim := strings.TrimSpace(fullLine)
 			fields := splitDirective(fullTrim)
-			if fields.cmd == "define" && endedAtEOF && !endsWithNewline {
+			if fields.cmd == "define" && endedAtEOF && !lr.lastHasNL {
 				_, _, body, ok := parseDefineDirective(fields.arg)
 				if ok && strings.TrimSpace(body) != "" {
-					return nil, fmt.Errorf("%s:%d: no newline after macro definition", shortPath(filename), startLineNo)
+					return fmt.Errorf("%s:%d: no newline after macro definition", shortPath(filename), startLineNo)
 				}
 			}
 			if err := p.handleDirective(&out, filename, startLineNo, fullTrim, cond); err != nil {
 				if err.Error() == "redefinition of macro" {
-					return nil, fmt.Errorf("%s:%d: %s", shortPath(filename), startLineNo, err.Error())
+					return fmt.Errorf("%s:%d: %s", shortPath(filename), startLineNo, err.Error())
 				}
-				return nil, err
+				return err
 			}
 			if preserveDirectiveLines(fields.cmd) {
 				for i := 0; i < lineNo-startLineNo+1; i++ {
@@ -133,9 +143,9 @@ func (p *Preprocessor) Process(filename string, src []byte) ([]byte, error) {
 		expanded, err := p.expandLineForProcess(line)
 		if err != nil {
 			if err.Error() == "recursive macro invocation" {
-				return nil, fmt.Errorf("%s:%d: %s", shortPath(filename), lineNo, err.Error())
+				return fmt.Errorf("%s:%d: %s", shortPath(filename), lineNo, err.Error())
 			}
-			return nil, err
+			return err
 		}
 		if p.KeepLineComments {
 			// comment marker is safe for Go asm; adjust if you prefer
@@ -147,16 +157,14 @@ func (p *Preprocessor) Process(filename string, src []byte) ([]byte, error) {
 		}
 	}
 
-	if err := sc.Err(); err != nil {
-		return nil, err
-	}
 	if cond.Depth() != 0 {
 		if line := cond.UnclosedLine(); line > 0 {
-			return nil, fmt.Errorf("%s:%d: unclosed #ifdef or #ifndef", shortPath(filename), line)
+			return fmt.Errorf("%s:%d: unclosed #ifdef or #ifndef", shortPath(filename), line)
 		}
-		return nil, fmt.Errorf("%s: unclosed #ifdef or #ifndef", shortPath(filename))
+		return fmt.Errorf("%s: unclosed #ifdef or #ifndef", shortPath(filename))
 	}
-	return out.Bytes(), nil
+	_, err = w.Write(out.Bytes())
+	return err
 }
 
 func (p *Preprocessor) expandLineForProcess(line string) (string, error) {
@@ -256,23 +264,54 @@ func stripLineComment(s string) string {
 	return s
 }
 
-func readDirectiveLine(firstLine string, firstLineNo int, sc *bufio.Scanner) (fullLine string, endLineNo int, nextLine string, nextLineNo int, ok bool, endedAtEOF bool) {
+type lineReader struct {
+	r         *bufio.Reader
+	lastHasNL bool
+}
+
+func newLineReader(r io.Reader) *lineReader {
+	return &lineReader{r: bufio.NewReader(r)}
+}
+
+func (lr *lineReader) next() (line string, hasNL bool, ok bool, err error) {
+	s, err := lr.r.ReadString('\n')
+	if err != nil && err != io.EOF {
+		return "", false, false, err
+	}
+	if len(s) == 0 && err == io.EOF {
+		return "", false, false, io.EOF
+	}
+	hasNL = strings.HasSuffix(s, "\n")
+	if hasNL {
+		s = s[:len(s)-1]
+	}
+	lr.lastHasNL = hasNL
+	return s, hasNL, true, nil
+}
+
+func readDirectiveLine(firstLine string, firstLineNo int, lr *lineReader) (fullLine string, endLineNo int, nextLine string, nextLineNo int, ok bool, endedAtEOF bool, err error) {
 	line := firstLine
 	lineNo := firstLineNo
 	var b strings.Builder
 	for {
 		if !lineContinues(line) {
 			b.WriteString(line)
-			return b.String(), lineNo, "", 0, true, false
+			return b.String(), lineNo, "", 0, true, false, nil
 		}
 		b.WriteString(stripLineContinuation(line))
-		if !sc.Scan() {
-			return b.String(), lineNo, "", 0, true, true
+		next, _, ok, err := lr.next()
+		if err != nil {
+			if err == io.EOF {
+				return b.String(), lineNo, "", 0, true, true, nil
+			}
+			return "", 0, "", 0, false, false, err
+		}
+		if !ok {
+			return b.String(), lineNo, "", 0, true, true, nil
 		}
 		lineNo++
-		next := sc.Text()
 		if !isContinuationLine(next) {
-			return b.String(), lineNo - 1, next, lineNo, true, false
+			return b.String(), lineNo-1, next, lineNo, true, false, nil
 		}
 		b.WriteByte('\n')
 		line = next
@@ -329,11 +368,9 @@ func (p *Preprocessor) handleDirective(out *bytes.Buffer, filename string, lineN
 		if err != nil {
 			return fmt.Errorf("%s:%d: include %q: %w", shortPath(filename), lineNo, path, err)
 		}
-		inc, err := p.Process(resolved, bs)
-		if err != nil {
+		if err := p.Process(resolved, bytes.NewReader(bs), out); err != nil {
 			return err
 		}
-		out.Write(inc)
 		return nil
 
 	case "define":
