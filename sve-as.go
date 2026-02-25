@@ -1408,8 +1408,21 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		}
+	case "lasta", "lastb":
+		if ok, rd, pg, zn, T := is_r_p_z(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	B	1	0	1	Pg	Zn	Rd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "B", If(mnem == "lasta", "0", "1"))
+			return assem_r_p_z(templ, rd, pg, zn), 0, nil
+		}
 	case "clasta":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
+		if ok, rdn, pg, zm, T := is_r_p_rz(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	1	0	0	0	0	1	0	1	Pg	Zm	Rdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Rdn", "Rd")
+			templ = strings.ReplaceAll(templ, "Zm", "Zn")
+			return assem_r_p_z(templ, rdn, pg, zm), 0, nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	1	0	0	0	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
@@ -1417,7 +1430,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "clastb":
-		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
+		if ok, rdn, pg, zm, T := is_r_p_rz(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	1	0	0	0	1	1	0	1	Pg	Zm	Rdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Rdn", "Rd")
+			templ = strings.ReplaceAll(templ, "Zm", "Zn")
+			return assem_r_p_z(templ, rdn, pg, zm), 0, nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	1	0	0	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
@@ -2410,6 +2429,44 @@ func is_r_r_b(args []string) (ok bool, rt, rs, rn int) {
 	return
 }
 
+func is_v_p_z(args []string) (ok bool, vd, pg, zn int, T string) {
+	if len(args) == 3 {
+		vd = getV(args[0])
+		pg = getP(args[1])
+		zn, T, _ = getZ(args[2])
+		if vd != -1 && pg != -1 && zn != -1 && T != "" {
+			return true, vd, pg, zn, T
+		}
+	}
+	return
+}
+
+func is_r_p_z(args []string) (ok bool, rd, pg, zn int, T string) {
+	if len(args) == 3 {
+		rd = getR(args[0])
+		pg = getP(args[1])
+		zn, T, _ = getZ(args[2])
+		if rd != -1 && pg != -1 && zn != -1 && T != "" {
+			return true, rd, pg, zn, T
+		}
+	}
+	return
+}
+
+func is_r_p_rz(args []string) (ok bool, rdn, pg, zm int, T string) {
+	if len(args) == 4 {
+		rdn = getR(args[0])
+		pg = getP(args[1])
+		if rdn != -1 && rdn == getR(args[2]) {
+			zm, T, _ = getZ(args[3])
+			if pg != -1 && zm != -1 && T != "" {
+				return true, rdn, pg, zm, T
+			}
+		}
+	}
+	return
+}
+
 func is_rr_rr_b(args []string) (ok bool, rt, rs, rn int) {
 	if len(args) >= 5 {
 		rs = getR(args[0])
@@ -3131,6 +3188,19 @@ func assem_r_rrr(template string, rd, rn, rm, ra int) uint32 {
 	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
 	opcode = strings.ReplaceAll(opcode, "Rm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rm), 2)))
 	opcode = strings.ReplaceAll(opcode, "Ra", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(ra), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_r_p_z(template string, rd, pg, zn int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Rd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rd), 2)))
+	opcode = strings.ReplaceAll(opcode, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(pg), 2)))
+	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)

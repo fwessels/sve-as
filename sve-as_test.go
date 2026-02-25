@@ -464,6 +464,10 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x4520e407 // aesimc z7.b, z7.b"},
 		{"    WORD $0x05611dac // ext z12.b, {z13.b, z14.b}, #15"},
 		{"    WORD $0x05220a30 // ext z16.b, z16.b, z17.b, #18"},
+		{"    WORD $0x05b0a000 // clasta x0, p0, x0, z0.s"},
+		{"    WORD $0x05b1a421 // clastb x1, p1, x1, z1.s"},
+		{"    WORD $0x05a0a000 // lasta x0, p0, z0.s"},
+		{"    WORD $0x05a1a000 // lastb x0, p0, z0.s"},
 	}
 
 	for i, tc := range testCases {
