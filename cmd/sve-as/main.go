@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -155,15 +156,19 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 		goroot := runtime.GOROOT()
 		includeDir := filepath.Join(goroot, "pkg", "include")
 
-		var srccode, objcode *os.File
+		var srccode, objcode, disas *os.File
 		if srccode, err = os.CreateTemp("", "asm2s-*.s"); err != nil {
 			return
 		}
 		if objcode, err = os.CreateTemp("", "asm2s-*.o"); err != nil {
 			return
 		}
+		if disas, err = os.CreateTemp("", "asm2s-*.disas"); err != nil {
+			return
+		}
 		defer os.Remove(srccode.Name())
 		defer os.Remove(objcode.Name())
+		defer os.Remove(disas.Name())
 
 		if err = os.WriteFile(srccode.Name(), []byte(opcodes), 0666); err != nil {
 			return
@@ -181,10 +186,13 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 		var objdump []byte
 		if objdump, err = exec.Command("go", "tool", "objdump", objcode.Name()).
 			CombinedOutput(); err != nil {
-			return "", fmt.Errorf("go tool asm failed: %w\noutput:\n%s", err, objdump)
+			return "", fmt.Errorf("go tool objdump failed: %w\noutput:\n%s", err, objdump)
 		}
 
 		// fmt.Println(string(objdump))
+		if err = os.WriteFile(disas.Name(), []byte(objdump), 0666); err != nil {
+			return
+		}
 		getNextOpcode := func(scan *bufio.Scanner) (ophex, instr string) {
 			for scan.Scan() {
 				flds := strings.Fields(scan.Text())
@@ -202,7 +210,7 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 		scanner := bufio.NewScanner(bytes.NewReader([]byte(opcodes)))
 		scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
 		// replace opcodes with plan9s instructions
-		for lineno := 0; scanner.Scan(); lineno++ {
+		for lineno := 1; scanner.Scan(); lineno++ {
 			line := scanner.Text()
 			if pt, ok := sve_as.PassThrough(line); ok {
 				_, instr := getNextOpcode(scanObjdump)
@@ -215,8 +223,11 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 					if strings.Fields(instr)[0] != "ADD" {
 						panic("out of sync")
 					}
+				} else if strings.Fields(pt)[0] == "B" && strings.Fields(instr)[0] == "JMP" ||
+					strings.Fields(pt)[0] == "BLO" && strings.Fields(instr)[0] == "BCC" {
+					// synonyms -- accept
 				} else if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
-					panic("out of sync")
+					panic(fmt.Sprintf("out of sync: %s vs %s", strings.Join(strings.Fields(pt), " "), strings.Join(strings.Fields(instr), " ")))
 				}
 			} else if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
 				ophex, instr := getNextOpcode(scanObjdump)
@@ -242,16 +253,20 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: sve-as <filename.s/.asm>")
+	plan9 := flag.Bool("plan9", false, "enable plan9 disassembly for asm mode")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) < 1 {
+		fmt.Println("Usage: sve-as [-plan9] <filename.s/.asm> [...]")
 		os.Exit(1)
 	}
 
-	for args := os.Args[1:]; len(args) > 0; args = args[1:] {
-		fname := strings.ToLower(args[0])
+	for _, fname := range args {
+		fname = strings.ToLower(fname)
 		isAsm, isS := strings.HasSuffix(fname, ".asm"), strings.HasSuffix(fname, ".s")
 		if !isAsm && !isS {
-			fmt.Println("Usage: sve-as <filename.s/.asm>")
+			fmt.Println("Usage: sve-as [-plan9] <filename.s/.asm> [...]")
 			os.Exit(1)
 		}
 
@@ -265,7 +280,7 @@ func main() {
 				fmt.Printf("Processing %s", fname)
 				fname = strings.ReplaceAll(fname, ".asm", ".s")
 				fmt.Printf(" → %s\n", fname)
-				if processed, err = asm2s(fname, buf, true); err != nil {
+				if processed, err = asm2s(fname, buf, *plan9); err != nil {
 					log.Fatal(err)
 				}
 			}
