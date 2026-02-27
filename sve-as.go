@@ -101,12 +101,40 @@ func If[T any](cond bool, thenVal, elseVal T) T {
 	return elseVal
 }
 
+func normalizeArgsAndBraces(args []string) []string {
+	var _args []string
+	for _, arg := range args {
+		arg = strings.TrimSpace(strings.ReplaceAll(arg, ",", ""))
+		if arg == "{" || arg == "}" { // for { or }, just append as-is
+			_args = append(_args, arg)
+			continue
+		}
+		if strings.HasPrefix(arg, "{") {
+			_args = append(_args, "{")
+			arg = arg[1:]
+		}
+		if strings.HasSuffix(arg, "}") {
+			inner := arg[:len(arg)-1]
+			if inner != "" {
+				_args = append(_args, inner)
+			}
+			_args = append(_args, "}")
+			continue
+		}
+		if arg != "" { // normal case
+			_args = append(_args, arg)
+		}
+	}
+	if len(args) != len(_args) {
+		fmt.Println(args)
+		fmt.Println(_args)
+	}
+	return _args
+}
+
 func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	mnem := strings.Fields(ins)[0]
-	args := strings.Fields(ins)[1:]
-	for i := range args {
-		args[i] = strings.TrimSpace(strings.ReplaceAll(args[i], ",", ""))
-	}
+	args := normalizeArgsAndBraces(strings.Fields(ins)[1:])
 
 	switch mnem {
 	case "add":
@@ -2531,17 +2559,17 @@ func is_z_zz(args []string) (ok bool, zd, zn, zm int, T string) {
 }
 
 func is_z_zzi(args []string) (ok bool, zd, zn, zm, imm int, consec bool, T string) {
-	if len(args) == 4 {
+	if len(args) == 4 || len(args) == 6 {
 		var t1, t2, t3 string
 		zd, t1, _ = getZ(args[0])
-		consec = strings.HasPrefix(args[1], "{") && strings.HasSuffix(args[2], "}")
-		if consec {
-			zn, t2, _ = getZ(strings.ReplaceAll(args[1], "{", ""))
-			zm, t3, _ = getZ(strings.ReplaceAll(args[2], "}", ""))
-			if zn != zm-1 {
+		if len(args) == 6 && args[1] == "{" && args[4] == "}" {
+			zn, t2, _ = getZ(args[2])
+			zm, t3, _ = getZ(args[3])
+			consec = zn == zm-1
+			if !consec {
 				return false, -1, -1, -1, 0, false, ""
 			}
-		} else {
+		} else if len(args) == 4 {
 			zn, t2, _ = getZ(args[1])
 			zm, t3, _ = getZ(args[2])
 			if zd != zn {
@@ -2549,7 +2577,7 @@ func is_z_zzi(args []string) (ok bool, zd, zn, zm, imm int, consec bool, T strin
 			}
 		}
 		if zd != -1 && zn != -1 && zm != -1 && t1 == t2 && t2 == t3 {
-			if ok, imm := getImm(args[3]); ok {
+			if ok, imm := getImm(args[len(args)-1]); ok {
 				return true, zd, zn, zm, imm, consec, t1
 			}
 		}
