@@ -125,10 +125,6 @@ func normalizeArgsAndBraces(args []string) []string {
 			_args = append(_args, arg)
 		}
 	}
-	if len(args) != len(_args) {
-		fmt.Println(args)
-		fmt.Println(_args)
-	}
 	return _args
 }
 
