@@ -981,6 +981,33 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				}
 			}
 		}
+	case "ldp", "stp":
+		if ok, rt, rt2, rn, imm, postIndex, writeBack := is_rr_bi(args); ok {
+			if imm&7 == 0 && -512 <= imm && imm <= 504 {
+				imm = imm / 8
+				if imm < 0 {
+					imm = (1 << 7) + imm
+				}
+				L := If(mnem == "ldp", "1", "0")
+				if writeBack {
+					var templ string
+					if postIndex {
+						templ = "x	0	1	0	1	0	0	0	1	L	imm7	Rt2	Rn	Rt"
+					} else {
+						templ = "x	0	1	0	1	0	0	1	1	L	imm7	Rt2	Rn	Rt"
+					}
+					templ = strings.ReplaceAll(templ, "x", "1")
+					templ = strings.ReplaceAll(templ, "L", L)
+					return assem_rr_ri(templ, rt, rt2, rn, "imm7", imm), 0, nil
+				} else {
+					// signed offset
+					templ := "x	0	1	0	1	0	0	1	0	L	imm7	Rt2	Rn	Rt"
+					templ = strings.ReplaceAll(templ, "x", "1")
+					templ = strings.ReplaceAll(templ, "L", L)
+					return assem_rr_ri(templ, rt, rt2, rn, "imm7", imm), 0, nil
+				}
+			}
+		}
 	case "lsr":
 		if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 && 0 <= imm && imm <= 63 {
 			templ := "sf	1	0	1	0	0	1	1	0	N	immr	x	1	1	1	1	1	Rn	Rd"
@@ -2487,19 +2514,41 @@ func is_r_rii(args []string) (ok bool, rd, rn, immr, imms int) {
 func is_r_bi(args []string) (ok bool, rt, xn, imm int, postIndex, writeBack bool) {
 	if len(args) >= 2 {
 		rt = getR(args[0])
-		if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]!") { // preIndex
-			if xn, imm = getMemAddrImm(args[1:]); xn != -1 {
-				return true, rt, xn, imm, false, true
+		if rt != -1 {
+			if ok, xn, imm, postIndex, writeBack = is_bi(args[1:]); ok {
+				return true, rt, xn, imm, postIndex, writeBack
 			}
-		} else if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
-			if xn, imm = getMemAddrImm(args[1:]); xn != -1 {
-				return true, rt, xn, imm, false, false
-			}
-		} else if rt != -1 && args[1][0] == '[' && strings.HasSuffix(args[1], "]") { // postIndex
-			memreg := strings.NewReplacer("[", "", "]", "").Replace(args[1])
-			xn = getR(memreg)
-			if ok, imm := getImm(args[2]); ok && xn != -1 {
-				return true, rt, xn, imm, true, true
+		}
+	}
+	return
+}
+
+func is_bi(args []string) (ok bool, xn, imm int, postIndex, writeBack bool) {
+	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]!") { // preIndex
+		if xn, imm = getMemAddrImm(args[0:]); xn != -1 {
+			return true, xn, imm, false, true
+		}
+	} else if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+		if xn, imm = getMemAddrImm(args[0:]); xn != -1 {
+			return true, xn, imm, false, false
+		}
+	} else if args[0][0] == '[' && strings.HasSuffix(args[0], "]") { // postIndex
+		memreg := strings.NewReplacer("[", "", "]", "").Replace(args[0])
+		xn = getR(memreg)
+		if ok, imm := getImm(args[1]); ok && xn != -1 {
+			return true, xn, imm, true, true
+		}
+	}
+	return
+}
+
+func is_rr_bi(args []string) (ok bool, rt, rt2, xn, imm int, postIndex, writeBack bool) {
+	if len(args) >= 3 {
+		rt = getR(args[0])
+		rt2 = getR(args[1])
+		if rt != -1 && rt2 != -1 {
+			if ok, xn, imm, postIndex, writeBack = is_bi(args[2:]); ok {
+				return true, rt, rt2, xn, imm, postIndex, writeBack
 			}
 		}
 	}
