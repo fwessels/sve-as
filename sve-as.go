@@ -83,14 +83,39 @@ func PassThrough(ins string) (string, bool) {
 			return strings.TrimSpace(ins), true
 		}
 
-	case "b", "beq", "bne", "bcc", "bcs", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
-		"b.eq", "b.ne", "b.cc", "b.cs", "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls", "b.ge", "b.lt", "b.gt", "b.le", "b.al", "b.nv":
+	case "b", "beq", "bne", "bcc", "blo", "bcs", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
+		"b.eq", "b.ne", "b.cc", "b.lo", "b.cs", "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls", "b.ge", "b.lt", "b.gt", "b.le", "b.al", "b.nv":
 		if allCaps(mnem) {
 			return strings.TrimSpace(ins), true
 		} else {
 			return strings.ToUpper(mnem) + " " + strings.Join(strings.Fields(ins)[1:], " "), true
 		}
+
+	case "bl":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		}
+
+	case "tbz", "tbnz":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else if len(args) == 3 {
+			return strings.ToUpper(mnem) + " $" + strings.ReplaceAll(args[1], "#", "") + ", " + reg2Plan9s(args[0]) + ", " + strings.Join(args[2:], " "), true
+		}
+
+	case "cbz", "cbnz":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else if len(args) == 2 {
+			return strings.ToUpper(mnem) + " " + reg2Plan9s(args[0]) + ", " + strings.Join(args[1:], " "), true
+		}
+
+	case "jmp":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		}
 	}
+
 	return "", false
 }
 
