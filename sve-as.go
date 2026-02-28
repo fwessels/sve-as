@@ -1231,7 +1231,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_p(templ, pd), 0, nil
 		}
 	case "eor3":
-		if ok, zd, zn, zm, za, _ := is_z_zzz(args); ok {
+		if ok, zd, zn, zm, za, T := is_z_zzz(args); ok && strings.ToUpper(T) == "D" {
 			templ := "0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	1	0	Zk	Zdn"
 			if zd == zn {
 				return assem_z2_zz(templ, zd, zm, za), 0, nil
@@ -1871,7 +1871,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_p_p_zi(templ, pd, pg, zn, "imm5", imm), 0, nil
 		}
 	case "ptest":
-		if ok, pg, pn, _ := is_p_p(args); ok {
+		if ok, pg, pn, T := is_p_p(args); ok && strings.ToLower(T) == "b" {
 			templ := "0	0	1	0	0	1	0	1	op	S	0	1	0	0	0	0	1	1	Pg	0	Pn	0	opc2"
 			// op	S	opc2
 			// 0	1	0000	PTEST
