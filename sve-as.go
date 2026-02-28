@@ -1860,6 +1860,21 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		templ = strings.ReplaceAll(templ, "\t", "")
 		code, _ := strconv.ParseUint(templ, 2, 32)
 		return uint32(code), 0, nil
+	case "br", "blr":
+		if ok, rn := is_r(args); ok {
+			op := -1
+			switch mnem {
+			case "br":
+				op = 0
+			case "blr":
+				op = 1
+			}
+			if op != -1 {
+				templ := "1	1	0	1	0	1	1	0	0	op	1	1	1	1	1	0	0	0	0	0	0	Rn	0	0	0	0	0"
+				templ = strings.ReplaceAll(templ, "op", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(op), 2)))
+				return assem_r(templ, rn), 0, nil
+			}
+		}
 	case "index":
 		if ok, zd, imm1, imm2, T := is_z_ii(args); ok && -16 <= imm1 && imm1 < 16 && -16 <= imm2 && imm2 < 16 {
 			templ := "0	0	0	0	0	1	0	0	size	1	imm5b	0	1	0	0	0	0	imm5	Zd"
