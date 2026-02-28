@@ -45,9 +45,13 @@ loop:
 	movk x2, #0xfedc, lsl #32
 	movk x2, #0x1234, lsl #48
 	TBZ	$4, R1, done
+	tbz x11, #0x8, loop
+	CBZ R2, done
+	cbz	x3, loop
+	br x15
 	B done
 	add z0.s, z0.s, z0.s
-	ld1b { z20.b }, p0/z, [x11, #1, mul vl]
+	ld1b {z20.b}, p0/z, [x11, #1, mul vl]
 done:
 	str x2, [ret+16(fp)]
 	ret
@@ -72,9 +76,13 @@ loop:
 	WORD $0xf2dfdb82 // movk x2, #0xfedc, lsl #32
 	WORD $0xf2e24682 // movk x2, #0x1234, lsl #48
 	TBZ	$4, R1, done
+	TBZ $0x8, R11, loop
+	CBZ R2, done
+	CBZ R3, loop
+	WORD $0xd61f01e0 // br x15
 	B done
 	WORD $0x04a00000 // add z0.s, z0.s, z0.s
-	WORD $0xa401a174 // ld1b { z20.b }, p0/z, [x11, #1, mul vl]
+	WORD $0xa401a174 // ld1b {z20.b}, p0/z, [x11, #1, mul vl]
 done:
 	MOVD R2, ret+16(FP)
 	WORD $0xd65f03c0 // ret
@@ -98,9 +106,13 @@ loop:
 	MOVK $(65244<<32), R2
 	MOVK $(4660<<48), R2
     TBZ	$4, R1, done
+	TBZ $0x8, R11, loop
+	CBZ R2, done
+	CBZ R3, loop
+	JMP (R15)
 	B done
 	WORD $0x04a00000 // add z0.s, z0.s, z0.s
-	WORD $0xa401a174 // ld1b { z20.b }, p0/z, [x11, #1, mul vl]
+	WORD $0xa401a174 // ld1b {z20.b}, p0/z, [x11, #1, mul vl]
 done:
 	MOVD R2, ret+16(FP)
 	RET
