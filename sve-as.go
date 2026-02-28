@@ -795,7 +795,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "ld1d":
-		if ok, zt, pg, rn, rm, _, _ := is_z_p_rr(args); ok {
+		if ok, zt, pg, rn, rm, shift, T := is_z_p_rr(args); ok && shift == 3 && strings.ToLower(T) == "d" {
 			templ := "1	0	1	0	0	1	0	1	1	1	1	Rm	0	1	0	Pg	Rn	Zt"
 			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 		}
@@ -1639,7 +1639,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	0	0	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
-		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
+		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "" {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	0	1	1	0	1	Pg	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_z(templ, zd, pg, zn), 0, nil
@@ -2817,7 +2817,7 @@ func is_p_p(args []string) (ok bool, pg, pn int, T string) {
 		}
 		if pg != -1 && pn != -1 &&
 			(T == T2 || T == "" && strings.ToLower(T2) == "b" /* for ptest p4, p5.b */) {
-			return true, pg, pn, T
+			return true, pg, pn, T2
 		}
 	}
 	return
