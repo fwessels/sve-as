@@ -805,9 +805,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ := "1	1	1	0	0	1	0	0	0	1	0	Zm	1	xs	0	Pg	Rn	Zt"
 				return assem_z_p_bz(templ, zt, pg, rn, zm, xs), 0, nil
 			}
-		} else if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok {
+		} else if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && -8 <= imm && imm <= 7 {
 			templ := "1	1	1	0	0	1	0	0	0	size	0	imm4	1	1	1	Pg	Rn	Zt"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			if imm < 0 {
+				imm = (1 << 4) + imm
+			}
 			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 		}
 	case "st1d":
@@ -1837,6 +1840,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				zn, zm = zm, zn // swap arguments
 			}
 			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
+		} else if ok, pd, pg, zn, imm, T := is_p_p_zi(args); ok && -16 <= imm && imm <= 15 {
+			templ := "0	0	1	0	0	1	0	1	size	0	imm5	0	0	0	Pg	Zn	0	Pd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			if imm < 0 {
+				imm = (1 << 5) + imm
+			}
+			return assem_p_p_zi(templ, pd, pg, zn, "imm5", imm), 0, nil
 		}
 	case "cmpgt", "cmplt":
 		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
