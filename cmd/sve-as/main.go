@@ -46,7 +46,7 @@ func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDW
 		} else if regexp.MustCompile(`(?:WORD \$0x[0-9a-f]{8}|DWORD \$0x[0-9a-f]{16})\s*//`).MatchString(line) {
 			instruction := strings.Split(line, "//")[1]
 			ins := strings.Split(instruction, "/*")[0]
-			if pt, ok := sve_as.PassThrough(ins); ok {
+			if pt, ok := passThrough(ins); ok {
 				line = "    " + pt
 			} else {
 				opcode, opcode2, err := sve_as.Assemble(ins)
@@ -70,6 +70,103 @@ func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDW
 
 	out = assembled.String()
 	return
+}
+
+// Check for instructions to pass through and/or translate into plan9s equivalents
+func passThrough(ins string) (string, bool) {
+	allCaps := func(s string) (hasLetter bool) {
+		for _, r := range s {
+			if unicode.IsLetter(r) {
+				hasLetter = true
+				if !unicode.IsUpper(r) {
+					return false
+				}
+			}
+		}
+		return
+	}
+	reg2Plan9s := func(reg string) string {
+		if strings.HasPrefix(reg, "x") {
+			return strings.ReplaceAll(reg, "x", "R")
+		}
+		return reg
+	}
+	if strings.TrimSpace(ins) == "" {
+		return "", false
+	}
+	mnem := strings.Fields(ins)[0]
+	args := strings.Fields(ins)[1:]
+	for i := range args {
+		args[i] = strings.TrimSpace(strings.ReplaceAll(args[i], ",", ""))
+	}
+
+	switch strings.ToLower(mnem) {
+	case "ldr", "str":
+		if len(args) == 2 && strings.HasSuffix(args[1], "(fp)]") {
+			lbl := args[1]
+			lbl = strings.ReplaceAll(lbl, "(fp)", "(FP)")
+			lbl = strings.NewReplacer("[", "", "]", "").Replace(lbl)
+			if mnem == "ldr" {
+				return "MOVD" + " " + lbl + ", " + reg2Plan9s(args[0]), true
+			} else {
+				return "MOVD" + " " + reg2Plan9s(args[0]) + ", " + lbl, true
+			}
+		}
+
+	case "adr":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else if len(args) == 2 {
+			lbl := args[1]
+			if strings.HasPrefix(lbl, "$·") && strings.HasSuffix(lbl, "(sb)") {
+				// for absolute addresses, use MOVD instruction
+				lbl = strings.ReplaceAll(lbl, "(sb)", "(SB)")
+				return "MOVD" + " " + lbl + ", " + reg2Plan9s(args[0]), true
+			} else {
+				// for PC-relative addresses
+				return strings.ToUpper(mnem) + " " + lbl + ", " + reg2Plan9s(args[0]), true
+			}
+		}
+
+	case "movd":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		}
+
+	case "b", "beq", "bne", "bcc", "blo", "bcs", "bmi", "bpl", "bvs", "bvc", "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
+		"b.eq", "b.ne", "b.cc", "b.lo", "b.cs", "b.mi", "b.pl", "b.vs", "b.vc", "b.hi", "b.ls", "b.ge", "b.lt", "b.gt", "b.le", "b.al", "b.nv":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else {
+			return strings.ToUpper(mnem) + " " + strings.Join(strings.Fields(ins)[1:], " "), true
+		}
+
+	case "bl":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		}
+
+	case "tbz", "tbnz":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else if len(args) == 3 {
+			return strings.ToUpper(mnem) + " $" + strings.ReplaceAll(args[1], "#", "") + ", " + reg2Plan9s(args[0]) + ", " + strings.Join(args[2:], " "), true
+		}
+
+	case "cbz", "cbnz":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		} else if len(args) == 2 {
+			return strings.ToUpper(mnem) + " " + reg2Plan9s(args[0]) + ", " + strings.Join(args[1:], " "), true
+		}
+
+	case "jmp":
+		if allCaps(mnem) {
+			return strings.TrimSpace(ins), true
+		}
+	}
+
+	return "", false
 }
 
 func NewPreprocessor(fname string) (pp *preprocessor.Preprocessor, err error) {
@@ -128,7 +225,7 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 			strings.HasPrefix(strings.TrimSpace(line), "#include") ||
 			strings.HasSuffix(line, ":") {
 			// pass along verbatim
-		} else if pt, ok := sve_as.PassThrough(line); ok {
+		} else if pt, ok := passThrough(line); ok {
 			line = "    " + pt
 		} else {
 			opcode, opcode2, err := sve_as.Assemble(line)
@@ -212,7 +309,7 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 		// replace opcodes with plan9s instructions
 		for lineno := 1; scanner.Scan(); lineno++ {
 			line := scanner.Text()
-			if pt, ok := sve_as.PassThrough(line); ok {
+			if pt, ok := passThrough(line); ok {
 				_, instr := getNextOpcode(scanObjdump)
 				// fmt.Println(pt, "|", instr)
 				if strings.Fields(pt)[0] == "MOVD" && strings.Fields(instr)[0] == "ADRP" {
