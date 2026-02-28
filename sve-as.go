@@ -1328,9 +1328,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_z(templ, zd, pg, zn), 0, nil
 		}
-	case "sdot":
+	case "sdot", "udot":
 		if ok, zda, zn, zm, Td, T := is_z_zz_2t(args); ok {
-			templ := "0	1	0	0	0	1	0	0	size	0	Zm	0	0	0	0	0	0	Zn	Zda"
+			templ := "0	1	0	0	0	1	0	0	size	0	Zm	0	0	0	0	0	U	Zn	Zda"
+			templ = strings.ReplaceAll(templ, "U", If(mnem == "udot", "1", "0"))
 			if Td == "d" && T == "h" {
 				templ = strings.ReplaceAll(templ, "size", "11")
 				return assem_z_zz2(templ, zda, zn, zm), 0, nil
