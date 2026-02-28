@@ -907,18 +907,27 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 			}
 		}
-	case "ldrh":
+	case "ldrsh", "ldrh", "strh":
 		if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
+			opc := -1
+			switch mnem {
+			case "ldrsh": // sign-extends to 64 bits
+				opc = 2
+			case "ldrh": // unsigned
+				opc = 1
+			case "strh":
+				opc = 0
+			}
 			if writeBack {
 				if -256 <= imm && imm <= 255 {
 					var templ string
 					if postIndex {
-						templ = "0	1	1	1	1	0	0	0	0	1	0	imm9	0	1	Rn	Rt"
+						templ = "0	1	1	1	1	0	0	0	opc	0	imm9	0	1	Rn	Rt"
 					} else {
-						templ = "0	1	1	1	1	0	0	0	0	1	0	imm9	1	1	Rn	Rt"
+						templ = "0	1	1	1	1	0	0	0	opc	0	imm9	1	1	Rn	Rt"
 					}
 					templ = strings.ReplaceAll(templ, "Rt", "Rd")
-					templ = strings.ReplaceAll(templ, "x", "1")
+					templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
 					if imm < 0 {
 						imm = (1 << 9) + imm
 					}
@@ -927,10 +936,48 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			} else {
 				// unsigned offset
 				if imm&1 == 0 && imm >= 0 && imm < 8192 {
-					templ := "0	1	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
+					templ := "0	1	1	1	1	0	0	1	opc	imm12	Rn	Rt"
 					templ = strings.ReplaceAll(templ, "Rt", "Rd")
-					templ = strings.ReplaceAll(templ, "sh", "")
+					templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
 					return assem_r_ri(templ, rt, rn, "imm12", imm/2, 0), 0, nil
+				}
+			}
+		}
+	case "ldrsw", "ldrw", "strw": // additional scalar instruction (in style of ldrb/ldrh and strb/strh)
+		if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
+			opc := -1
+			switch mnem {
+			case "ldrsw": // sign-extends to 64 bits
+				opc = 2
+			case "ldrw": // unsigned
+				opc = 1
+			case "strw":
+				opc = 0
+			}
+			if writeBack {
+				if -256 <= imm && imm <= 255 {
+					var templ string
+					if postIndex {
+						templ = "1	x	1	1	1	0	0	0	opc	0	imm9	0	1	Rn	Rt"
+					} else {
+						templ = "1	x	1	1	1	0	0	0	opc	0	imm9	1	1	Rn	Rt"
+					}
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "0")
+					templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
+					if imm < 0 {
+						imm = (1 << 9) + imm
+					}
+					return assem_r_ri(templ, rt, rn, "imm9", imm, 0), 0, nil
+				}
+			} else {
+				// unsigned offset
+				if imm&3 == 0 && imm >= 0 && imm < 16384 {
+					templ := "1	x	1	1	1	0	0	1	opc	imm12	Rn	Rt"
+					templ = strings.ReplaceAll(templ, "Rt", "Rd")
+					templ = strings.ReplaceAll(templ, "x", "0")
+					templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
+					return assem_r_ri(templ, rt, rn, "imm12", imm/4, 0), 0, nil
 				}
 			}
 		}
