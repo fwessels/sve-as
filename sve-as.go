@@ -478,6 +478,21 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, 31, rm, "imm6", imm), 0, nil
 		}
+	case "fmov":
+		if len(args) == 2 {
+			rd := getR(args[0])
+			rn := getV(args[1])
+			if rd != -1 && rn != -1 {
+				templ := "sf	0	0	1	1	1	1	0	ftype	1	rmode	opcode	0	0	0	0	0	0	Rn	Rd"
+				templ = strings.ReplaceAll(templ, "sf", "1")
+				// FMOV <Xd>, <Dn>
+				// Double-precision to 64-bit (sf == 1 && ftype == 01 && rmode == 00 && opcode == 110)
+				templ = strings.ReplaceAll(templ, "ftype", "01")
+				templ = strings.ReplaceAll(templ, "rmode", "00")
+				templ = strings.ReplaceAll(templ, "opcode", "110")
+				return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+			}
+		}
 	case "abs":
 		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
 			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	1	0	0	0	Rn	Rd"
