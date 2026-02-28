@@ -3334,6 +3334,25 @@ func assem_r_ri(template string, rd, rn int, immPttrn string, imm, shift int) ui
 	}
 }
 
+func assem_rr_ri(template string, rt, rt2, rn int, immPttrn string, imm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Rt2", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rt2), 2)))
+	opcode = strings.ReplaceAll(opcode, "Rt", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rt), 2)))
+	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
+	switch immPttrn {
+	case "imm7":
+		opcode = strings.ReplaceAll(opcode, "imm7", fmt.Sprintf("%0*s", 7, strconv.FormatUint(uint64(imm), 2)))
+	default:
+		fmt.Println("Invalid immediate pattern: ", immPttrn)
+	}
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
 func assem_r_rrr(template string, rd, rn, rm, ra int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Rd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rd), 2)))
