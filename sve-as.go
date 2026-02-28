@@ -2353,6 +2353,16 @@ func is_ri(args []string) (ok bool, rn, imm int) {
 	return
 }
 
+func is_r(args []string) (ok bool, rn int) {
+	if len(args) == 1 {
+		rn = getR(args[0])
+		if rn != -1 {
+			return true, rn
+		}
+	}
+	return
+}
+
 func is_rr(args []string) (ok bool, rn, rm int) {
 	if len(args) == 2 {
 		rn, rm = getR(args[0]), getR(args[1])
@@ -3653,6 +3663,17 @@ func assem_i(template string, immPttrn string, imm int) uint32 {
 	default:
 		fmt.Println("Invalid immediate pattern: ", immPttrn)
 	}
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_r(template string, rn int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)
