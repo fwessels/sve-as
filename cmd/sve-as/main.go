@@ -244,109 +244,111 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 		assembled.WriteString(line + comments + "\n")
 	}
 
-	opcodes := assembled.String()
-
-	if !toPlan9s {
-		out = opcodes
+	if toPlan9s {
+		return translateBackToPlan9s(assembled.String())
 	} else {
-		// Get GOROOT the same way the go tool does
-		goroot := runtime.GOROOT()
-		includeDir := filepath.Join(goroot, "pkg", "include")
+		return assembled.String(), nil
+	}
+}
 
-		var srccode, objcode, disas *os.File
-		if srccode, err = os.CreateTemp("", "asm2s-*.s"); err != nil {
-			return
-		}
-		if objcode, err = os.CreateTemp("", "asm2s-*.o"); err != nil {
-			return
-		}
-		if disas, err = os.CreateTemp("", "asm2s-*.disas"); err != nil {
-			return
-		}
-		defer os.Remove(srccode.Name())
-		defer os.Remove(objcode.Name())
-		defer os.Remove(disas.Name())
+func translateBackToPlan9s(opcodes string) (string, error) {
+	// Get GOROOT the same way the go tool does
+	goroot := runtime.GOROOT()
+	includeDir := filepath.Join(goroot, "pkg", "include")
 
-		if err = os.WriteFile(srccode.Name(), []byte(opcodes), 0666); err != nil {
-			return
-		}
-		cmd := exec.Command(
-			"go", "tool", "asm",
-			"-o", objcode.Name(), "-I", includeDir,
-			srccode.Name(),
-		)
-		if goasm, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("go tool asm failed: %w\noutput:\n%s", err, goasm)
-		}
+	var srccode, objcode, disas *os.File
+	var err error
+	if srccode, err = os.CreateTemp("", "asm2s-*.s"); err != nil {
+		return "", err
+	}
+	if objcode, err = os.CreateTemp("", "asm2s-*.o"); err != nil {
+		return "", err
+	}
+	if disas, err = os.CreateTemp("", "asm2s-*.disas"); err != nil {
+		return "", err
+	}
+	defer os.Remove(srccode.Name())
+	defer os.Remove(objcode.Name())
+	defer os.Remove(disas.Name())
 
-		// Capture stdout + stderr
-		var objdump []byte
-		if objdump, err = exec.Command("go", "tool", "objdump", objcode.Name()).
-			CombinedOutput(); err != nil {
-			return "", fmt.Errorf("go tool objdump failed: %w\noutput:\n%s", err, objdump)
-		}
-
-		// fmt.Println(string(objdump))
-		if err = os.WriteFile(disas.Name(), []byte(objdump), 0666); err != nil {
-			return
-		}
-		getNextOpcode := func(scan *bufio.Scanner) (ophex, instr string) {
-			for scan.Scan() {
-				flds := strings.Fields(scan.Text())
-				if len(flds) >= 4 {
-					if _, err := hex.DecodeString(flds[2]); err == nil {
-						ophex = flds[2]
-						instr = strings.Join(flds[3:], " ")
-						return
-					}
-				}
-			}
-			return "", ""
-		}
-		plan9s := strings.Builder{}
-		scanner := bufio.NewScanner(bytes.NewReader([]byte(opcodes)))
-		scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
-		// replace opcodes with plan9s instructions
-		for lineno := 1; scanner.Scan(); lineno++ {
-			line := scanner.Text()
-			if pt, ok := passThrough(line); ok {
-				_, instr := getNextOpcode(scanObjdump)
-				// fmt.Println(pt, "|", instr)
-				if strings.Fields(pt)[0] == "MOVD" && strings.Fields(instr)[0] == "ADRP" {
-					// MOVD $·const(SB), R3 becomes two instructions:
-					//   ....  90000003        ADRP 0(PC), R3          [0:8]R_ADDRARM64:<unlinkable>.const
-					//   ....  91000063        ADD $0, R3, R3
-					_, instr := getNextOpcode(scanObjdump)
-					if strings.Fields(instr)[0] != "ADD" {
-						panic("out of sync")
-					}
-				} else if strings.Fields(pt)[0] == "B" && strings.Fields(instr)[0] == "JMP" ||
-					strings.Fields(pt)[0] == "BLO" && strings.Fields(instr)[0] == "BCC" {
-					// synonyms -- accept
-				} else if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
-					panic(fmt.Sprintf("out of sync: %s vs %s", strings.Join(strings.Fields(pt), " "), strings.Join(strings.Fields(instr), " ")))
-				}
-			} else if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
-				ophex, instr := getNextOpcode(scanObjdump)
-				if strings.TrimSpace(line)[len("WORD $0x"):len("WORD $0x")+8] == ophex {
-					if instr == "?" {
-						// NOP -- keep existing line
-					} else {
-						line = "    " + instr
-					}
-				} else {
-					panic("out of sync")
-				}
-			} else if strings.HasPrefix(strings.TrimSpace(line), "DWORD $0x") {
-				panic("handle case")
-			}
-			plan9s.WriteString(line + "\n")
-		}
-
-		out = plan9s.String()
+	if err = os.WriteFile(srccode.Name(), []byte(opcodes), 0666); err != nil {
+		return "", err
+	}
+	cmd := exec.Command(
+		"go", "tool", "asm",
+		"-o", objcode.Name(), "-I", includeDir,
+		srccode.Name(),
+	)
+	if goasm, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("go tool asm failed: %w\noutput:\n%s", err, goasm)
 	}
 
-	return
+	// Capture stdout + stderr
+	var objdump []byte
+	if objdump, err = exec.Command("go", "tool", "objdump", objcode.Name()).
+		CombinedOutput(); err != nil {
+		return "", fmt.Errorf("go tool objdump failed: %w\noutput:\n%s", err, objdump)
+	}
+
+	// fmt.Println(string(objdump))
+	if err = os.WriteFile(disas.Name(), []byte(objdump), 0666); err != nil {
+		return "", err
+
+	}
+	getNextOpcode := func(scan *bufio.Scanner) (ophex, instr string) {
+		for scan.Scan() {
+			flds := strings.Fields(scan.Text())
+			if len(flds) >= 4 {
+				if _, err := hex.DecodeString(flds[2]); err == nil {
+					ophex = flds[2]
+					instr = strings.Join(flds[3:], " ")
+					return
+				}
+			}
+		}
+		return "", ""
+	}
+	plan9s := strings.Builder{}
+	scanner := bufio.NewScanner(bytes.NewReader([]byte(opcodes)))
+	scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
+	// replace opcodes with plan9s instructions
+	for lineno := 1; scanner.Scan(); lineno++ {
+		line := scanner.Text()
+		if pt, ok := passThrough(line); ok {
+			_, instr := getNextOpcode(scanObjdump)
+			// fmt.Println(pt, "|", instr)
+			if strings.Fields(pt)[0] == "MOVD" && strings.Fields(instr)[0] == "ADRP" {
+				// MOVD $·const(SB), R3 becomes two instructions:
+				//   ....  90000003        ADRP 0(PC), R3          [0:8]R_ADDRARM64:<unlinkable>.const
+				//   ....  91000063        ADD $0, R3, R3
+				_, instr := getNextOpcode(scanObjdump)
+				if strings.Fields(instr)[0] != "ADD" {
+					panic("out of sync")
+				}
+			} else if strings.Fields(pt)[0] == "B" && strings.Fields(instr)[0] == "JMP" ||
+				strings.Fields(pt)[0] == "BLO" && strings.Fields(instr)[0] == "BCC" {
+				// synonyms -- accept
+			} else if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
+				panic(fmt.Sprintf("out of sync: %s vs %s", strings.Join(strings.Fields(pt), " "), strings.Join(strings.Fields(instr), " ")))
+			}
+		} else if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
+			ophex, instr := getNextOpcode(scanObjdump)
+			if strings.TrimSpace(line)[len("WORD $0x"):len("WORD $0x")+8] == ophex {
+				if instr == "?" {
+					// NOP -- keep existing line
+				} else {
+					line = "    " + instr
+				}
+			} else {
+				panic("out of sync")
+			}
+		} else if strings.HasPrefix(strings.TrimSpace(line), "DWORD $0x") {
+			panic("handle case")
+		}
+		plan9s.WriteString(line + "\n")
+	}
+
+	return plan9s.String(), nil
 }
 
 func main() {
