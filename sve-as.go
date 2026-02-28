@@ -858,16 +858,49 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		} else if ok, zt, pg, rn, rm, shift, T := is_z_p_rr(args); ok && shift == 2 {
 			var templ string
-			if strings.ToLower(T) == "s" {
+			switch strings.ToLower(T) {
+			case "s":
 				templ = "1	0	1	0	0	1	0	1	0	1	0	Rm	0	1	0	Pg	Rn	Zt"
-			}
-			if strings.ToLower(T) == "d" {
+			case "d":
 				templ = "1	0	1	0	0	1	0	1	0	1	1	Rm	0	1	0	Pg	Rn	Zt"
-			}
-			if strings.ToLower(T) == "q" {
+			case "q":
 				templ = "1	0	1	0	0	1	0	1	0	0	0	Rm	1	0	0	Pg	Rn	Zt"
 			}
 			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
+		} else if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && pg <= 7 && -8 <= imm && imm <= 7 {
+			var templ string
+			switch strings.ToLower(T) {
+			case "s":
+				templ = "1	0	1	0	0	1	0	1	0	1	0	0	imm4	1	0	1	Pg	Rn	Zt"
+			case "d":
+				templ = "1	0	1	0	0	1	0	1	0	1	1	0	imm4	1	0	1	Pg	Rn	Zt"
+			case "q":
+				templ = "1	0	1	0	0	1	0	1	0	0	0	1	imm4	0	0	1	Pg	Rn	Zt"
+			}
+			if imm < 0 {
+				imm = (1 << 4) + imm
+			}
+			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
+		} else if ok, zt, pg, rn, imm, T := is_z2_p_bi(args); ok && strings.ToLower(T) == "s" && zt&1 == 0 && 8 <= pg && pg <= 15 && imm&1 == 0 && -8*2 <= imm && imm <= 7*2 {
+			templ := "1	0	1	0	0	0	0	0	0	1	0	0	imm4	0	1	0	PNg	Rn	Zt	0"
+			templ = strings.ReplaceAll(templ, "PNg", "Pg")
+			templ = strings.ReplaceAll(templ, "Zt	0", "Zt")
+			pg -= 8
+			imm = imm / 2
+			if imm < 0 {
+				imm = (1 << 4) + imm
+			}
+			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
+		} else if ok, zt, pg, rn, imm, T := is_z4_p_bi(args); ok && strings.ToLower(T) == "s" && zt&3 == 0 && 8 <= pg && pg <= 15 && imm&3 == 0 && -8*4 <= imm && imm <= 7*4 {
+			templ := "1	0	1	0	0	0	0	0	0	1	0	0	imm4	1	1	0	PNg	Rn	Zt	0	0"
+			templ = strings.ReplaceAll(templ, "PNg", "Pg")
+			templ = strings.ReplaceAll(templ, "Zt	0	0", "Zt")
+			pg -= 8
+			imm = imm / 4
+			if imm < 0 {
+				imm = (1 << 4) + imm
+			}
+			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 		}
 	case "ld1rw":
 		if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok {
@@ -899,6 +932,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ := "1	0	1	0	0	0	0	0	0	0	0	Rm	1	0	0	PNg	Rn	Zt	0	0"
 				return assem_zt4_p_rr(templ, zt>>2, pg, rn, rm), 0, nil
 			}
+		} else if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && -8 <= imm && imm <= 7 {
+			templ := "1	0	1	0	0	1	0	0	0	size	0	imm4	1	0	1	Pg	Rn	Zt"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 		}
 	case "ld4b":
 		if ok, zt, pg, rn, rm, T := is_zt4_p_rr(args); ok {
@@ -3201,6 +3238,76 @@ func is_z_p_bi(args []string) (ok bool, zt, pg, rn, imm int, T string) {
 		if zt != -1 && pg != -1 && args[4][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 			if rn, imm = getMemAddrImm(args[4:]); rn != -1 {
 				return true, zt, pg, rn, imm, T
+			}
+		}
+	}
+	return
+}
+
+func is_z2_p_bi(args []string) (ok bool, zt, pg, rn, imm int, T string) {
+	if len(args) >= 5 && args[0] == "{" && args[2] == "}" && strings.Contains(args[1], "-") {
+		parts := strings.Split(args[1], "-")
+		if len(parts) == 2 {
+			zt, T, _ = getZ(parts[0])
+			var zt2 int
+			var T2 string
+			zt2, T2, _ = getZ(parts[1])
+			if T == T2 && zt == zt2-1 {
+				pg = getP(strings.Split(args[3], "/")[0]) // drop any trailer
+				if zt != -1 && pg != -1 && args[4][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+					if rn, imm = getMemAddrImm(args[4:]); rn != -1 {
+						return true, zt, pg, rn, imm, T
+					}
+				}
+			}
+		}
+	} else if len(args) >= 5 && args[0] == "{" && args[3] == "}" {
+		zt, T, _ = getZ(args[1])
+		var zt2 int
+		var T2 string
+		zt2, T2, _ = getZ(args[2])
+		if T == T2 && zt == zt2-1 {
+			pg = getP(strings.Split(args[4], "/")[0]) // drop any trailer
+			if zt != -1 && pg != -1 && args[5][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+				if rn, imm = getMemAddrImm(args[5:]); rn != -1 {
+					return true, zt, pg, rn, imm, T
+				}
+			}
+		}
+	}
+	return
+}
+
+func is_z4_p_bi(args []string) (ok bool, zt, pg, rn, imm int, T string) {
+	if len(args) >= 5 && args[0] == "{" && args[2] == "}" && strings.Contains(args[1], "-") {
+		parts := strings.Split(args[1], "-")
+		if len(parts) == 2 {
+			zt, T, _ = getZ(parts[0])
+			var zt2 int
+			var T2 string
+			zt2, T2, _ = getZ(parts[1])
+			if T == T2 && zt == zt2-3 {
+				pg = getP(strings.Split(args[3], "/")[0]) // drop any trailer
+				if zt != -1 && pg != -1 && args[4][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+					if rn, imm = getMemAddrImm(args[4:]); rn != -1 {
+						return true, zt, pg, rn, imm, T
+					}
+				}
+			}
+		}
+	} else if len(args) >= 7 && args[0] == "{" && args[5] == "}" {
+		zt, T, _ = getZ(args[1])
+		var zt2, zt3, zt4 int
+		var T2, T3, T4 string
+		zt2, T2, _ = getZ(args[2])
+		zt3, T3, _ = getZ(args[3])
+		zt4, T4, _ = getZ(args[4])
+		if T == T2 && T2 == T3 && T3 == T4 && zt == zt2-1 && zt == zt3-2 && zt == zt4-3 {
+			pg = getP(strings.Split(args[6], "/")[0]) // drop any trailer
+			if zt != -1 && pg != -1 && args[7][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
+				if rn, imm = getMemAddrImm(args[7:]); rn != -1 {
+					return true, zt, pg, rn, imm, T
+				}
 			}
 		}
 	}

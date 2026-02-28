@@ -436,10 +436,21 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x2598e3e3 // ptrue p3.s"},
 		{"    WORD $0x05b441ef // rev   p15.s, p15.s"},
 		{"    WORD $0x258554a6 // mov   p6.b, p5.b"},
+		{"    WORD $0xa540a861 // ld1w { z1.s }, p2/z, [x3]"},
+		{"    WORD $0xa567b4c4 // ld1w { z4.d }, p5/z, [x6, #7, MUL VL]"},
+		{"    WORD $0xa5183d28 // ld1w { z8.q }, p7/z, [x9, #-8, MUL VL]"},
+		{"    WORD $0xa0404882 // ld1w { z2.s, z3.s }, p10/z, [x4]"},
+		{"    WORD $0xa04050c4 // ld1w { z4.s-z5.s }, p12/z, [x6]"},
+		{"    WORD $0xa047c124 // ld1w { z4.s, z5.s, z6.s, z7.s }, p8/z, [x9, #28, MUL VL]"},
+		{"    WORD $0xa040c968 // ld1w { z8.s-z11.s }, p10/z, [x11]"}, // consecutive
 		{"    WORD $0x855c5482 // ld1w  { z2.s }, p5/z, [x4, z28.s, sxtw]"},
 		{"    WORD $0xa54b4450 // ld1w  { z16.s }, p1/z, [x2, x11, lsl #2]"},
 		{"    WORD $0x8540de9b // ld1rw { z27.s }, p7/z, [x20]"},
 		{"    WORD $0x84cb594a // ld1h  { z10.s }, p6/z, [x10, z11.s, sxtw]"},
+		{"    WORD $0xa400a173 // ld1b  { z19.b }, p0/z, [x11]"},
+		{"    WORD $0xa420a173 // ld1b  { z19.h }, p0/z, [x11]"},
+		{"    WORD $0xa440a173 // ld1b  { z19.s }, p0/z, [x11]"},
+		{"    WORD $0xa460a173 // ld1b  { z19.d }, p0/z, [x11]"},
 		{"    WORD $0x84155e94 // ld1b  { z20.s }, p7/z, [x20, z21.s, uxtw]"},
 		{"    WORD $0xa01f87d8 // ld1b  { z24.b, z25.b, z26.b, z27.b }, p9/z, [x30, x31]"}, // consecutive
 		{"    WORD $0xa472c66d // ld4b  { z13.b, z14.b, z15.b, z16.b }, p1/z, [x19, x18]"}, // interleaved
