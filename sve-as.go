@@ -127,7 +127,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	case "udiv":
-		if ok, rd, rn, rm, _, _ := is_r_rr(args); ok {
+		if ok, rd, rn, rm, res0a, res0b := is_r_rr(args); ok && res0a == 0 && res0b == 0 {
 			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	0	0	1	0	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
@@ -222,7 +222,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "and":
-		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
+		if ok, zd, zn, zm, T := is_z_zz(args); ok && strings.ToUpper(T) == "D" {
 			return assem_z_zz("0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), 0, nil
 		} else if ok, zdn, zn, imm, T := is_z_zimm(args); ok && zdn == zn {
 			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
@@ -267,7 +267,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_r_rr(templ, rd, rn, rm, "imm6", imm), 0, nil
 		}
 	case "eor":
-		if ok, zd, zn, zm, _ := is_z_zz(args); ok {
+		if ok, zd, zn, zm, T := is_z_zz(args); ok && strings.ToUpper(T) == "D" {
 			return assem_z_zz("0	0	0	0	0	1	0	0	1	0	1	Zm	0	0	1	1	0	0	Zn	Zd", zd, zn, zm), 0, nil
 		} else if ok, zdn, zn, imm, T := is_z_zimm(args); ok && zdn == zn {
 			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
