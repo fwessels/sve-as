@@ -1893,14 +1893,16 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	case "nop":
 		templ := "1	1	0	1	0	1	0	1	0	0	0	0	0	0	1	1	0	0	1	0	0	0	0	0	0	0	0	1	1	1	1	1"
 		templ = strings.ReplaceAll(templ, "\t", "")
-		code, _ := strconv.ParseUint(templ, 2, 32)
-		return uint32(code), 0, nil
+		if code, err := strconv.ParseUint(templ, 2, 32); err == nil {
+			return uint32(code), 0, nil
+		}
 	case "ret":
 		templ := "1	1	0	1	0	1	1	0	0	1	0	1	1	1	1	1	0	0	0	0	0	0	Rn	0	0	0	0	0"
 		templ = strings.ReplaceAll(templ, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(30, 2)))
 		templ = strings.ReplaceAll(templ, "\t", "")
-		code, _ := strconv.ParseUint(templ, 2, 32)
-		return uint32(code), 0, nil
+		if code, err := strconv.ParseUint(templ, 2, 32); err == nil {
+			return uint32(code), 0, nil
+		}
 	case "br", "blr":
 		if ok, rn := is_r(args); ok {
 			op := -1
