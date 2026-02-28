@@ -733,6 +733,36 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				}
 			}
 		}
+	case "ldursw", "ldur", "ldurh", "ldurb", "stur", "sturh", "sturb":
+		if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok && !postIndex && !writeBack && -256 <= imm && imm <= 255 {
+			size, opc := -1, -1
+			switch mnem {
+			case "ldursw":
+				size, opc = 3, 2
+			case "ldur":
+				size, opc = 3, 1
+			case "ldurh":
+				size, opc = 1, 1
+			case "ldurb":
+				size, opc = 0, 1
+			case "stur":
+				size, opc = 3, 0
+			case "sturh":
+				size, opc = 1, 0
+			case "sturb":
+				size, opc = 0, 0
+			}
+			if size != -1 && opc != -1 {
+				templ := "size	1	1	1	0	0	0	opc	0	imm9	0	0	Rn	Rt"
+				templ = strings.ReplaceAll(templ, "size", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(size), 2)))
+				templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
+				templ = strings.ReplaceAll(templ, "Rt", "Rd")
+				if imm < 0 {
+					imm = (1 << 9) + imm
+				}
+				return assem_r_ri(templ, rt, rn, "imm9", imm, 0), 0, nil
+			}
+		}
 	case "ld1d":
 		if ok, zt, pg, rn, rm, _, _ := is_z_p_rr(args); ok {
 			templ := "1	0	1	0	0	1	0	1	1	1	1	Rm	0	1	0	Pg	Rn	Zt"
