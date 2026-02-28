@@ -734,9 +734,9 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				if -256 <= imm && imm <= 255 {
 					var templ string
 					if postIndex {
-						templ = "0	0	1	1	1	0	0	0	0	1	0	imm9	0	1	Rn	Rt"
+						templ = "0	0	1	1	1	0	0	0	opc	0	imm9	0	1	Rn	Rt"
 					} else {
-						templ = "0	0	1	1	1	0	0	0	0	1	0	imm9	1	1	Rn	Rt"
+						templ = "0	0	1	1	1	0	0	0	opc	0	imm9	1	1	Rn	Rt"
 					}
 					templ = strings.ReplaceAll(templ, "Rt", "Rd")
 					templ = strings.ReplaceAll(templ, "x", "1")
@@ -754,7 +754,6 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 					templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
 					return assem_r_ri(templ, rt, rn, "imm12", imm, 0), 0, nil
 				}
-
 			}
 		}
 	case "str":
