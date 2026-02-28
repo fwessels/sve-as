@@ -468,6 +468,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x046896d2 // lsr   z18.s, z22.s, #24"},
 		{"    WORD $0x047896d2 // lsr   z18.s, z22.s, #8"},
 		{"    WORD $0x0499bf6a // clz   z10.s, p7/m, z27.s"},
+		{"    WORD $0x049aa440 // cnt   z0.s, p1/m, z2.s"},
 		{"    WORD $0x04c130a3 // uaddv d3, p4, z5.d"},
 		{"    WORD $0x04c034c4 // saddv d4, p5, z6.d"},
 		// {" WORD $0x00000000 // uaddv h0, p0, z0.h"},

@@ -537,6 +537,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	1	1	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "", 0, 0), 0, nil
+		} else if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "" {
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	1	0	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
 		}
 	case "ctz":
 		if ok, rd, rn, shift, imm := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
