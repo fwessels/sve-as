@@ -3241,10 +3241,16 @@ func is_z_p_bz(args []string) (ok bool, zt, pg, rn, zm, xs int, T string) {
 
 func is_zt4_p_rr(args []string) (ok bool, zt, pg, rn, rm int, T string) {
 	if len(args) == 9 && args[0] == "{" && args[5] == "}" {
-		zt, T, _ = getZ(args[1])
+		var idx int
+		if zt, T, idx = getZ(args[1]); idx != 0 {
+			return false, 0, 0, 0, 0, ""
+		}
 		for a := 2; a < 5; a++ { // check Z-registers are consecutive
-			ztNext, TNext, _ := getZ(args[a])
-			if ztNext != zt+1+(a-2) || T != TNext {
+			var ztNext, idxNext int
+			var TNext string
+			if ztNext, TNext, idxNext = getZ(args[a]); idxNext != 0 {
+				return false, 0, 0, 0, 0, ""
+			} else if ztNext != zt+1+(a-2) || T != TNext {
 				return false, 0, 0, 0, 0, ""
 			}
 		}
