@@ -3084,7 +3084,7 @@ func is_r_i(args []string) (ok bool, rd int, imm, shift int) {
 func getMemAddrImm(args []string) (xn, imm int) {
 	if args[0][0] == '[' && (strings.HasSuffix(args[len(args)-1], "]") || strings.HasSuffix(args[len(args)-1], "]!")) {
 		memaddr := strings.Join(args[0:], ", ")
-		memaddr = strings.NewReplacer("[", "", "]!", "", "]", "", "MUL, VL", "MUL VL").Replace(memaddr)
+		memaddr = strings.NewReplacer("[", "", "]!", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
 		mas := strings.Split(memaddr, ", ")
 		if len(mas) >= 1 {
 			xn = getR(mas[0])
@@ -3136,7 +3136,7 @@ func getMemAddrRegister(args []string) (rn, rm, option, amount int) {
 func getMemAddrVectored(args []string) (rn, zm, xs int, T string) {
 	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 		memaddr := strings.Join(args[0:], ", ")
-		memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL").Replace(memaddr)
+		memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
 		mas := strings.Split(memaddr, ", ")
 		if len(mas) >= 1 {
 			rn = getR(mas[0])
@@ -3159,7 +3159,7 @@ func is_z_bi(args []string) (ok bool, zt, xn, imm int) {
 		zt, _, _ = getZ(args[0])
 		if zt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 			memaddr := strings.Join(args[1:], ", ")
-			memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL").Replace(memaddr)
+			memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
 			mas := strings.Split(memaddr, ", ")
 			if len(mas) >= 1 {
 				xn = getR(mas[0])
@@ -3181,7 +3181,7 @@ func is_p_bi(args []string) (ok bool, pt, xn, imm int) {
 		pt = getP(args[0])
 		if pt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 			memaddr := strings.Join(args[1:], ", ")
-			memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL").Replace(memaddr)
+			memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
 			mas := strings.Split(memaddr, ", ")
 			if len(mas) >= 1 {
 				xn = getR(mas[0])
