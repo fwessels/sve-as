@@ -719,8 +719,17 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				}
 			}
 		}
-	case "ldrb":
+	case "ldrsb", "ldrb", "strb":
 		if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
+			opc := -1
+			switch mnem {
+			case "ldrsb": // sign-extends to 64 bits
+				opc = 2
+			case "ldrb": // unsigned
+				opc = 1
+			case "strb":
+				opc = 0
+			}
 			if writeBack {
 				if -256 <= imm && imm <= 255 {
 					var templ string
@@ -731,6 +740,7 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 					}
 					templ = strings.ReplaceAll(templ, "Rt", "Rd")
 					templ = strings.ReplaceAll(templ, "x", "1")
+					templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
 					if imm < 0 {
 						imm = (1 << 9) + imm
 					}
@@ -739,9 +749,9 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			} else {
 				// unsigned offset
 				if imm >= 0 && imm < 4096 {
-					templ := "0	0	1	1	1	0	0	1	0	1	imm12	Rn	Rt"
+					templ := "0	0	1	1	1	0	0	1	opc	imm12	Rn	Rt"
 					templ = strings.ReplaceAll(templ, "Rt", "Rd")
-					templ = strings.ReplaceAll(templ, "sh", "")
+					templ = strings.ReplaceAll(templ, "opc", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(opc), 2)))
 					return assem_r_ri(templ, rt, rn, "imm12", imm, 0), 0, nil
 				}
 

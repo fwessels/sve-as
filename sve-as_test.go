@@ -107,6 +107,12 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xf8767a37 // ldr x23, [x17, x22, lsl #3]"},
 		{"    WORD $0xf82d7894 // str x20, [x4, x13, lsl #3]"},
 		{"    WORD $0xf90007e2 // str x2, [sp, #8]"},
+		{"    WORD $0x39000401 // strb x1, [x0, #1]"},
+		{"    WORD $0x39000801 // strb x1, [x0, #2]"},
+		{"    WORD $0x79000401 // strh x1, [x0, #2]"},
+		{"    WORD $0x79000801 // strh x1, [x0, #4]"},
+		{"    WORD $0xb9000401 // strw x1, [x0, #4]"},
+		{"    WORD $0xb9000801 // strw x1, [x0, #8]"},
 		{"    WORD $0xf940fdd4 // ldr x20, [x14, #0x1f8]"},
 		{"    WORD $0xf8408480 // ldr x0, [x4], #8"},
 		{"    WORD $0xf8408c80 // ldr x0, [x4, #8]!"},
@@ -117,6 +123,12 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x784024c2 // ldrh x2, [x6], #2"},
 		{"    WORD $0x784ffce3 // ldrh x3, [x7, #255]!"},
 		{"    WORD $0x797ffd04 // ldrh x4, [x8, #8190]"},
+		{"    WORD $0xb847b56a // ldrw x10, [x11], #123"},   // additional 'word' variant
+		{"    WORD $0xb84ffd8b // ldrw x11, [x12, #255]!"},  // additional 'word' variant
+		{"    WORD $0xb97ffdac // ldrw x12, [x13, #16380]"}, // additional 'word' variant
+		{"    WORD $0xb89fcc6b // ldrsw	x11, [x3, #-4]!"},
+		{"    WORD $0x789fec6b // ldrsh x11, [x3, #-2]!"},
+		{"    WORD $0x389ffc6b // ldrsb x11, [x3, #-1]!"},
 		{"    WORD $0x92400d6a // and x10, x11, #0xf"},
 		{"    WORD $0xf2401d6a // ands x10, x11, #0xff"},
 		{"    WORD $0xd2402d6a // eor x10, x11, #0xfff"},
