@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -295,55 +296,99 @@ func translateBackToPlan9s(opcodes string) (string, error) {
 		return "", err
 
 	}
-	getNextOpcode := func(scan *bufio.Scanner) (ophex, instr string) {
-		for scan.Scan() {
-			flds := strings.Fields(scan.Text())
-			if len(flds) >= 4 {
-				if _, err := hex.DecodeString(flds[2]); err == nil {
-					ophex = flds[2]
-					instr = strings.Join(flds[3:], " ")
-					return
-				}
+	type disasOpcode struct {
+		ophex string
+		instr string
+	}
+	opcodesByLine := map[int][]disasOpcode{}
+	scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
+	for scanObjdump.Scan() {
+		flds := strings.Fields(scanObjdump.Text())
+		if len(flds) < 4 {
+			continue
+		}
+		if _, err := hex.DecodeString(flds[2]); err != nil {
+			continue
+		}
+
+		// first field is "<source>:<line>"
+		colon := strings.LastIndexByte(flds[0], ':')
+		if colon <= 0 || colon+1 >= len(flds[0]) {
+			continue
+		}
+		lineno, err := strconv.Atoi(flds[0][colon+1:])
+		if err != nil {
+			continue
+		}
+
+		opcodesByLine[lineno] = append(opcodesByLine[lineno], disasOpcode{
+			ophex: strings.ToLower(flds[2]),
+			instr: strings.Join(flds[3:], " "),
+		})
+	}
+
+	findByOpcode := func(line []disasOpcode, ophex string) (string, bool) {
+		ophex = strings.ToLower(ophex)
+		for _, d := range line {
+			if d.ophex == ophex {
+				return d.instr, true
 			}
 		}
-		return "", ""
+		return "", false
 	}
+
+	extractHex := func(line, prefix string, n int) (string, bool) {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, prefix) {
+			return "", false
+		}
+		hexPart := line[len(prefix):]
+		if len(hexPart) < n {
+			return "", false
+		}
+		hexPart = hexPart[:n]
+		if _, err := hex.DecodeString(hexPart); err != nil {
+			return "", false
+		}
+		return strings.ToLower(hexPart), true
+	}
+
 	plan9s := strings.Builder{}
 	scanner := bufio.NewScanner(bytes.NewReader([]byte(opcodes)))
-	scanObjdump := bufio.NewScanner(bytes.NewReader(objdump))
-	// replace opcodes with plan9s instructions
+	// replace opcodes with plan9 instructions using objdump source line numbers
 	for lineno := 1; scanner.Scan(); lineno++ {
 		line := scanner.Text()
 		if pt, ok := passThrough(line); ok {
-			_, instr := getNextOpcode(scanObjdump)
-			// fmt.Println(pt, "|", instr)
-			if strings.Fields(pt)[0] == "MOVD" && strings.Fields(instr)[0] == "ADRP" {
-				// MOVD $·const(SB), R3 becomes two instructions:
-				//   ....  90000003        ADRP 0(PC), R3          [0:8]R_ADDRARM64:<unlinkable>.const
-				//   ....  91000063        ADD $0, R3, R3
-				_, instr := getNextOpcode(scanObjdump)
-				if strings.Fields(instr)[0] != "ADD" {
-					panic("out of sync")
-				}
-			} else if strings.Fields(pt)[0] == "B" && strings.Fields(instr)[0] == "JMP" ||
-				strings.Fields(pt)[0] == "BLO" && strings.Fields(instr)[0] == "BCC" {
-				// synonyms -- accept
-			} else if strings.Fields(pt)[0] != strings.Fields(instr)[0] {
-				panic(fmt.Sprintf("out of sync: %s vs %s", strings.Join(strings.Fields(pt), " "), strings.Join(strings.Fields(instr), " ")))
-			}
+			// Preserve symbolic form (e.g. labels) from the original source.
+			line = "    " + pt
 		} else if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
-			ophex, instr := getNextOpcode(scanObjdump)
-			if strings.TrimSpace(line)[len("WORD $0x"):len("WORD $0x")+8] == ophex {
-				if instr == "?" {
-					// NOP -- keep existing line
-				} else {
+			if idx := strings.Index(line, "//"); idx >= 0 {
+				if pt, ok := passThrough(line[idx+2:]); ok {
+					// Prefer source-comment instruction when it carries labels.
+					line = "    " + pt
+					plan9s.WriteString(line + "\n")
+					continue
+				}
+			}
+			if ophex, ok := extractHex(line, "WORD $0x", 8); ok {
+				if instr, found := findByOpcode(opcodesByLine[lineno], ophex); found && instr != "?" {
 					line = "    " + instr
 				}
-			} else {
-				panic("out of sync")
 			}
 		} else if strings.HasPrefix(strings.TrimSpace(line), "DWORD $0x") {
-			panic("handle case")
+			if ophex, ok := extractHex(line, "DWORD $0x", 16); ok {
+				upper := ophex[:8]
+				lower := ophex[8:]
+				lineOpcodes := opcodesByLine[lineno]
+				upperInstr, hasUpper := findByOpcode(lineOpcodes, upper)
+				lowerInstr, hasLower := findByOpcode(lineOpcodes, lower)
+				if hasLower && lowerInstr != "?" {
+					line = "    " + lowerInstr
+				}
+				if hasUpper && upperInstr != "?" {
+					plan9s.WriteString("    " + upperInstr + "\n")
+				}
+			}
 		}
 		plan9s.WriteString(line + "\n")
 	}
