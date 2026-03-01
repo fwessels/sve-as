@@ -113,6 +113,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "sf", "1")
 			return assem_r_ri(templ, rd, rn, "imm12", imm, shift), 0, nil
 		}
+	case "addp":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
+			templ := "0	1	0	0	0	1	0	0	size	0	1	0	0	0	1	1	0	1	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+		}
 	case "adc", "adcs", "sbc", "sbcs":
 		if ok, rd, rn, rm, shift, imm := is_r_rr(args); ok && len(args) == 3 && shift == 0 && imm == 0 {
 			templ := "sf	0	0	1	1	0	1	0	0	0	0	Rm	0	0	0	0	0	0	Rn	Rd"
