@@ -201,11 +201,16 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	case "saddv", "uaddv": // add across vector (signed/unsigned)
 		if ok, vd, pg, zn, T := is_v_p_z(args); ok && T != "" {
 			templ := "0	0	0	0	0	1	0	0	size	0	0	0	0	0	U	0	0	1	Pg	Zn	Vd"
-			if mnem == "uaddv" {
-				templ = strings.ReplaceAll(templ, "U", "1")
-			} else {
-				templ = strings.ReplaceAll(templ, "U", "0")
-			}
+			templ = strings.ReplaceAll(templ, "U", If(mnem == "uaddv", "1", "0"))
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Vd", "Rd")
+			return assem_r_p_z(templ, vd, pg, zn), 0, nil
+		}
+	case "smaxv", "umaxv", "sminv", "uminv":
+		if ok, vd, pg, zn, T := is_v_p_z(args); ok && T != "" {
+			templ := "0	0	0	0	0	1	0	0	size	0	0	1	0	N	U	0	0	1	Pg	Zn	Vd"
+			templ = strings.ReplaceAll(templ, "N", If(strings.HasSuffix(mnem, "minv"), "1", "0"))
+			templ = strings.ReplaceAll(templ, "U", If(mnem == "uminv" || mnem == "umaxv", "1", "0"))
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			templ = strings.ReplaceAll(templ, "Vd", "Rd")
 			return assem_r_p_z(templ, vd, pg, zn), 0, nil
