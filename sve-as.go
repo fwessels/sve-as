@@ -1692,9 +1692,11 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 			}
 		}
-	case "smin":
+	case "smin", "umin", "smax", "umax":
 		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
-			templ := "0	0	0	0	0	1	0	0	size	0	0	1	0	1	0	0	0	0	Pg	Zm	Zdn"
+			templ := "0	0	0	0	0	1	0	0	size	0	0	1	0	N	U	0	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "N", If(strings.HasSuffix(mnem, "min"), "1", "0"))
+			templ = strings.ReplaceAll(templ, "U", If(mnem == "umin" || mnem == "umax", "1", "0"))
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
 		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok {
