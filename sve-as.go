@@ -1248,6 +1248,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z2_zz(templ, zd, zm, za), 0, nil
 			}
 		}
+	case "bdep", "bext", "bgrp":
+		if ok, zd, zn, zm, T := is_z_zz(args); ok {
+			templ := "0	1	0	0	0	1	0	1	size	0	Zm	1	0	1	1	G	D	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "G", If(mnem == "bgrp", "1", "0"))
+			templ = strings.ReplaceAll(templ, "D", If(mnem == "bdep", "1", "0"))
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		}
 	case "mad":
 		if ok, zdn, pg, zm, za, T := is_z2_p_zz(args); ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	Zm	1	1	0	Pg	Za	Zdn"
