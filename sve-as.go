@@ -331,6 +331,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn, zm), 0, nil
 		}
+	case "tbx":
+		if ok, zd, zn, zm, T := is_z_zz(args); ok {
+			templ := "0	0	0	0	0	1	0	1	size	1	Zm	0	0	1	0	1	1	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		}
 	case "dupm": // duplicate with (contiguous) bit mask
 		if ok, zd, imm, T := is_z_i(args); ok {
 			if immr, imms := parseBitfieldConst(uint64(imm)); immr != 0xffffffff {
@@ -1373,6 +1379,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 				return assem_z_zz(templ, zd, zn, zm), 0, nil
 			}
+		}
+	case "xar":
+		if ok, zd, zn, zm, imm, consec, T := is_z_zzi(args); ok && zd == zn && !consec {
+			templ := "0	0	0	0	0	1	0	0	tszh	1	tszl	imm3	0	0	1	1	0	1	Zm	Zdn"
+			imm3, tsz := computeShiftSpecifier(uint(imm), true, T)
+			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
+			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
+			templ = strings.ReplaceAll(templ, "imm3", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(imm3), 2)))
+			return assem_z_zzi(templ, zd, zm, imm3), 0, nil
 		}
 	case "asr":
 		if ok, rd, rn, imm, shift := is_r_ri(args); ok && shift == 0 && 0 <= imm && imm <= 63 {
