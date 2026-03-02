@@ -438,6 +438,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
 				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 				return assem_z_r(templ, zd, rn), 0, nil
+			} else if ok, zd, zn, imm, T := is_z_zindexed(args); ok && imm != 0 {
+				// MOV <Zd>.<T>, <Zn>.<T>[<imm>]
+				// is equivalent to
+				// DUP <Zd>.<T>, <Zn>.<T>[<imm>]
+				templ := "0	0	0	0	0	1	0	1	imm2	1	tsz	0	0	1	0	0	0	Zn	Zd"
+				if tsz, imm2, ok := getTypeSpecifier(T, imm); ok {
+					templ = strings.ReplaceAll(templ, "tsz", tsz)
+					return assem_z_zi(templ, zd, zn, "imm2", imm2), 0, nil
+				}
 			} else if ok, zd, zn, T := is_z_z(args); ok && strings.ToLower(T) == "d" {
 				// MOV <Zd>.D, <Zn>.D
 				// is equivalent to

@@ -307,6 +307,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04a33080 // eor z0.d, z4.d, z3.d"},
 		{"    WORD $0x05212042 // dup z2.b, z2.b[0]"},
 		{"    WORD $0x053820c6 // dup z6.d, z6.d[1]"},
+		{"    WORD $0x053820c6 // mov z6.d, z6.d[1]"},
 		{"    WORD $0x05f820c6 // dup z6.d, z6.d[7]"},
 		{"    WORD $0x05a03883 // dup z3.s, w4"},
 		{"    WORD $0x05a03883 // mov z3.s, w4"},
