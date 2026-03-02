@@ -363,9 +363,9 @@ func stripLineContinuation(s string) string {
 		prefix := strings.TrimRight(s[:i], " \t")
 		if comment, ok := continuationCommentAfterBackslash(s, i); ok {
 			if prefix == "" {
-				return toBlockComment(comment)
+				return toLineComment(comment)
 			}
-			return prefix + " " + toBlockComment(comment)
+			return prefix + " " + toLineComment(comment)
 		}
 		return prefix
 	}
@@ -404,12 +404,12 @@ func continuationCommentAfterBackslash(s string, backslashIdx int) (string, bool
 	return strings.TrimSpace(tail[i+2:]), true
 }
 
-func toBlockComment(s string) string {
-	s = strings.ReplaceAll(s, "*/", "* /")
+func toLineComment(s string) string {
+	s = strings.TrimSpace(s)
 	if s == "" {
-		return "/* */"
+		return "//"
 	}
-	return "/* " + s + " */"
+	return "// " + s
 }
 
 func preserveDirectiveLines(cmd string) bool {
@@ -816,8 +816,17 @@ func replaceIdents(s string, repl map[string]string) string {
 			continue
 		}
 		if ch == '/' && i+1 < len(s) && s[i+1] == '/' {
-			b.WriteString(s[i:])
-			break
+			// Keep line comments intact, but continue scanning after newline
+			// so replacements on subsequent lines still happen.
+			for i < len(s) {
+				b.WriteByte(s[i])
+				if s[i] == '\n' {
+					i++
+					break
+				}
+				i++
+			}
+			continue
 		}
 		if ch == '/' && i+1 < len(s) && s[i+1] == '*' {
 			b.WriteByte(ch)

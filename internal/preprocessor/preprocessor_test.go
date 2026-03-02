@@ -72,7 +72,7 @@ func TestProcess_MultilineDefineWithCommentAfterContinuation(t *testing.T) {
 	}
 	want := lines(
 		"",
-		"\tadd X1, X2, #1 /* comment */",
+		"\tadd X1, X2, #1 // comment",
 		"\tcmp X1, X2",
 	)
 	if diff := cmp.Diff(want, out.String()); diff != "" {
