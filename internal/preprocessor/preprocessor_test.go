@@ -58,6 +58,28 @@ func TestProcess_MultilineDefineWithColumnZeroLabel(t *testing.T) {
 	}
 }
 
+func TestProcess_MultilineDefineWithCommentAfterContinuation(t *testing.T) {
+	in := lines(
+		"#define ADVANCE(A, B) \\",
+		"\tadd A, B, #1 \\ // comment",
+		"\tcmp A, B",
+		"ADVANCE(X1, X2)",
+	)
+	var out bytes.Buffer
+	pp := NewPreprocessor()
+	if err := pp.Process("<stdin>", strings.NewReader(in), &out); err != nil {
+		t.Fatalf("Process error: %v", err)
+	}
+	want := lines(
+		"",
+		"\tadd X1, X2, #1 /* comment */",
+		"\tcmp X1, X2",
+	)
+	if diff := cmp.Diff(want, out.String()); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
 // From: https://tip.golang.org/src/cmd/asm/internal/lex/lex_test.go
 
 func lines(a ...string) string {
@@ -146,6 +168,15 @@ var lexTests = []lexTest{
 			"after",
 		),
 		"before.\n.1.\n.2.\n.3.\n.after.\n",
+	},
+	{
+		"multiline macro with continuation comment",
+		lines(
+			"#define A(a, b) a \\ // keep going",
+			"\tb",
+			"A(1, 2)",
+		),
+		"1.\n.2.\n",
 	},
 	{
 		"LOAD macro",

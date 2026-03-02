@@ -354,20 +354,62 @@ func readDirectiveLine(firstLine string, firstLineNo int, lr *lineReader) (fullL
 }
 
 func lineContinues(s string) bool {
-	i := strings.LastIndexFunc(s, func(r rune) bool {
-		return r != ' ' && r != '\t'
-	})
-	return i >= 0 && s[i] == '\\'
+	return continuationBackslashIndex(s) >= 0
 }
 
 func stripLineContinuation(s string) string {
-	i := strings.LastIndexFunc(s, func(r rune) bool {
-		return r != ' ' && r != '\t'
-	})
-	if i >= 0 && s[i] == '\\' {
-		return strings.TrimRight(s[:i], " \t")
+	i := continuationBackslashIndex(s)
+	if i >= 0 {
+		prefix := strings.TrimRight(s[:i], " \t")
+		if comment, ok := continuationCommentAfterBackslash(s, i); ok {
+			if prefix == "" {
+				return toBlockComment(comment)
+			}
+			return prefix + " " + toBlockComment(comment)
+		}
+		return prefix
 	}
 	return s
+}
+
+func continuationBackslashIndex(s string) int {
+	trimmed := strings.TrimRight(s, " \t")
+	if trimmed == "" {
+		return -1
+	}
+	if trimmed[len(trimmed)-1] == '\\' {
+		return len(trimmed) - 1
+	}
+	if comment := strings.Index(trimmed, "//"); comment >= 0 {
+		beforeComment := strings.TrimRight(trimmed[:comment], " \t")
+		if beforeComment != "" && beforeComment[len(beforeComment)-1] == '\\' {
+			return len(beforeComment) - 1
+		}
+	}
+	return -1
+}
+
+func continuationCommentAfterBackslash(s string, backslashIdx int) (string, bool) {
+	if backslashIdx+1 >= len(s) {
+		return "", false
+	}
+	tail := s[backslashIdx+1:]
+	i := 0
+	for i < len(tail) && (tail[i] == ' ' || tail[i] == '\t') {
+		i++
+	}
+	if i+1 >= len(tail) || tail[i] != '/' || tail[i+1] != '/' {
+		return "", false
+	}
+	return strings.TrimSpace(tail[i+2:]), true
+}
+
+func toBlockComment(s string) string {
+	s = strings.ReplaceAll(s, "*/", "* /")
+	if s == "" {
+		return "/* */"
+	}
+	return "/* " + s + " */"
 }
 
 func preserveDirectiveLines(cmd string) bool {
