@@ -1,6 +1,7 @@
 package preprocessor
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -32,6 +33,28 @@ func TestBadLex(t *testing.T) {
 				t.Errorf("mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func TestProcess_MultilineDefineWithColumnZeroLabel(t *testing.T) {
+	in := lines(
+		"#define LOOP() \\",
+		"label: \\",
+		"\tADD $1, R0",
+		"LOOP()",
+	)
+	var out bytes.Buffer
+	pp := NewPreprocessor()
+	if err := pp.Process("<stdin>", strings.NewReader(in), &out); err != nil {
+		t.Fatalf("Process error: %v", err)
+	}
+	want := lines(
+		"",
+		"label:",
+		"\tADD $1, R0",
+	)
+	if diff := cmp.Diff(want, out.String()); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
 	}
 }
 

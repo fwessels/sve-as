@@ -348,9 +348,6 @@ func readDirectiveLine(firstLine string, firstLineNo int, lr *lineReader) (fullL
 			return b.String(), lineNo, "", 0, true, true, nil
 		}
 		lineNo++
-		if !isContinuationLine(next) {
-			return b.String(), lineNo - 1, next, lineNo, true, false, nil
-		}
 		b.WriteByte('\n')
 		line = next
 	}
@@ -371,13 +368,6 @@ func stripLineContinuation(s string) string {
 		return strings.TrimRight(s[:i], " \t")
 	}
 	return s
-}
-
-func isContinuationLine(s string) bool {
-	if s == "" {
-		return false
-	}
-	return s[0] == ' ' || s[0] == '\t'
 }
 
 func preserveDirectiveLines(cmd string) bool {
