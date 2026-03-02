@@ -348,8 +348,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	case "dup":
 		if ok, zd, zn, imm, T := is_z_zindexed(args); ok {
 			templ := "0	0	0	0	0	1	0	1	imm2	1	tsz	0	0	1	0	0	0	Zn	Zd"
-			templ = strings.ReplaceAll(templ, "tsz", getTypeSpecifier(T))
-			return assem_z_zi(templ, zd, zn, "imm2", imm), 0, nil
+			if tsz, imm2, ok := getTypeSpecifier(T, imm); ok {
+				templ = strings.ReplaceAll(templ, "tsz", tsz)
+				return assem_z_zi(templ, zd, zn, "imm2", imm2), 0, nil
+			}
 		} else if ok, zd, imm, T := is_z_i(args); ok && T != "" {
 			templ := "0	0	1	0	0	1	0	1	size	1	1	1	0	0	0	1	1	sh	imm8	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -2313,23 +2315,38 @@ func getSizeFromType(T string) string {
 	}
 }
 
-func getTypeSpecifier(T string) string {
+func getTypeSpecifier(T string, index int) (string, int, bool) {
 	switch strings.ToUpper(T) {
-	// 00000	RESERVED
 	case "B":
-		return "00001" // xxxx1: B
+		if 0 <= index && index <= 63 {
+			tsz := ((index & 0x0f) << 1) | 0b00001
+			imm2 := index >> 4
+			return fmt.Sprintf("%05b", tsz), imm2, true
+		}
 	case "H":
-		return "00010" // xxx10: H
+		if 0 <= index && index <= 31 {
+			tsz := ((index & 0x07) << 2) | 0b00010
+			imm2 := index >> 3
+			return fmt.Sprintf("%05b", tsz), imm2, true
+		}
 	case "S":
-		return "00100" // xx100: S
+		if 0 <= index && index <= 15 {
+			tsz := ((index & 0x03) << 3) | 0b00100
+			imm2 := index >> 2
+			return fmt.Sprintf("%05b", tsz), imm2, true
+		}
 	case "D":
-		return "01000" // x1000: D
+		if 0 <= index && index <= 7 {
+			tsz := ((index & 0x01) << 4) | 0b01000
+			imm2 := index >> 1
+			return fmt.Sprintf("%05b", tsz), imm2, true
+		}
 	case "Q":
-		return "10000" // 10000: Q
-	default:
-		fmt.Println("Invalid type: ", T)
-		return ""
+		if 0 <= index && index <= 3 {
+			return "10000", index, true
+		}
 	}
+	return "", 0, false
 }
 
 func getShift(in string) int {
