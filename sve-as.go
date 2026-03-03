@@ -1258,6 +1258,16 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 			return assem_p(templ, pd), 0, nil
 		}
+	case "whilelo", "whilels", "whilehi", "whilehs", "whilegt", "whilege", "whilele", "whilelt":
+		if ok, pd, rn, rm, sf, T := is_p_rr(args); ok {
+			templ := "0	0	1	0	0	1	0	1	size	1	Rm	0	0	0	sf	U	lt	Rn	eq	Pd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "U", If(mnem == "whilelo" || mnem == "whilels" || mnem == "whilehi" || mnem == "whilehs", "1", "0"))
+			templ = strings.ReplaceAll(templ, "lt", If(mnem == "whilelo" || mnem == "whilels" || mnem == "whilele" || mnem == "whilelt", "1", "0"))
+			templ = strings.ReplaceAll(templ, "eq", If(mnem == "whilehi" || mnem == "whilels" || mnem == "whilegt" || mnem == "whilele", "1", "0"))
+			templ = strings.ReplaceAll(templ, "sf", fmt.Sprintf("%0*s", 1, strconv.FormatUint(uint64(sf), 2)))
+			return assem_p_rr(templ, pd, rn, rm), 0, nil
+		}
 	case "eor3":
 		if ok, zd, zn, zm, za, T := is_z_zzz(args); ok && strings.ToUpper(T) == "D" {
 			templ := "0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	1	0	Zk	Zdn"
@@ -2888,6 +2898,27 @@ func is_p_p(args []string) (ok bool, pg, pn int, T string) {
 	return
 }
 
+func is_p_rr(args []string) (ok bool, pd, rn, rm, sf int, T string) {
+	if len(args) == 3 {
+		pd, T = getPdes(args[0])
+		rn = getR(args[1])
+		rm = getR(args[2])
+		if pd != -1 && rn != -1 && rm != -1 && len(args[1]) > 0 && len(args[2]) > 0 {
+			rnPrefix := strings.ToLower(args[1][:1])
+			rmPrefix := strings.ToLower(args[2][:1])
+			if rnPrefix == rmPrefix {
+				switch rnPrefix {
+				case "w":
+					return true, pd, rn, rm, 0, T
+				case "x":
+					return true, pd, rn, rm, 1, T
+				}
+			}
+		}
+	}
+	return
+}
+
 func is_p_p_zz(args []string) (ok bool, pd, pg, zn, zm int, T string) {
 	if len(args) == 4 {
 		var t1, t2, t3 string
@@ -3934,6 +3965,19 @@ func assem_p_p(template string, pg, pn int) uint32 {
 	opcode := template
 	opcode = strings.ReplaceAll(opcode, "Pg", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pg), 2)))
 	opcode = strings.ReplaceAll(opcode, "Pn", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pn), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_p_rr(template string, pd, rn, rm int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Pd", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pd), 2)))
+	opcode = strings.ReplaceAll(opcode, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Rm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rm), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)
