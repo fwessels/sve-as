@@ -151,7 +151,7 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x9240cd6a // and x10, x11, #0xfffffffffffff"},
 		{"    WORD $0x9240dd6a // and x10, x11, #0xffffffffffffff"},
 		{"    WORD $0x9240ed6a // and x10, x11, #0xfffffffffffffff"},
-		{"    WORD $0x9240fd6a // and x10, x11, #0xffffffffffffffff"},
+		//                        and x10, x11, #0xffffffffffffffff -- illegal (all-ones is not encodable as ARM logical immediate)
 		{"    WORD $0x8a031041 // and x1, x2, x3, lsl #4"},
 		{"    WORD $0xea431041 // ands x1, x2, x3, lsr #4"},
 		{"    WORD $0xca831041 // eor x1, x2, x3, asr #4"},

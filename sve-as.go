@@ -2302,8 +2302,8 @@ func getImm13(imms, immr uint32, T string) (imm13 uint32) {
 // lsb must be in [0, 63], width must be in [1, 64 - lsb]
 // return (0xffffffff, 0) if v is not a binary like 0...01...10...0
 func parseBitfieldConst(v uint64) (lsb, width uint32) {
-	// BFC is not applicable with zero
-	if v != 0 {
+	// BFC is not applicable with zero or all-ones
+	if v != 0 && v != ^uint64(0) {
 		// find the lowest set bit, for example l=2 for 0x3ffffffc
 		lsb = uint32(bits.TrailingZeros64(v))
 		// m-1 represents the highest set bit index, for example m=30 for 0x3ffffffc
