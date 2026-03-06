@@ -3236,7 +3236,10 @@ func getMemAddrRegister(args []string) (rn, rm, option, amount int) {
 				rm = getR(mas[1])
 				if rm != -1 {
 					mas = mas[2:]
-					if len(mas) == 2 && strings.ToLower(mas[0]) == "lsl" {
+					if len(mas) == 0 { // Implicit register offset form: [Xn, Xm] == [Xn, Xm, LSL #0]
+						option, amount = 0b011, 0
+						return rn, rm, option, amount
+					} else if len(mas) == 2 && strings.ToLower(mas[0]) == "lsl" {
 						if ok, imm := getImm(mas[1]); ok {
 							// option	<extend>
 							// 010	UXTW
