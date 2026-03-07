@@ -1853,24 +1853,20 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
 		}
-	case "cmpeq":
+	case "cmpeq", "cmpne":
 		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
-			templ := "0	0	1	0	0	1	0	0	size	0	Zm	1	0	1	Pg	Zn	0	Pd"
+			templ := "0	0	1	0	0	1	0	0	size	0	Zm	1	0	1	Pg	Zn	ne	Pd"
+			templ = strings.ReplaceAll(templ, "ne", If(mnem == "cmpne", "1", "0"))
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
 		} else if ok, pd, pg, zn, imm, T := is_p_p_zi(args); ok && -16 <= imm && imm <= 15 {
-			templ := "0	0	1	0	0	1	0	1	size	0	imm5	1	0	0	Pg	Zn	0	Pd"
+			templ := "0	0	1	0	0	1	0	1	size	0	imm5	1	0	0	Pg	Zn	ne	Pd"
+			templ = strings.ReplaceAll(templ, "ne", If(mnem == "cmpne", "1", "0"))
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			if imm < 0 {
 				imm = (1 << 5) + imm
 			}
 			return assem_p_p_zi(templ, pd, pg, zn, "imm5", imm), 0, nil
-		}
-	case "cmpne":
-		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
-			templ := "0	0	1	0	0	1	0	0	size	0	Zm	1	0	1	Pg	Zn	1	Pd"
-			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
-			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
 		}
 	case "cmphs", "cmpls":
 		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok {
