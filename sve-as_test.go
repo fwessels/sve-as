@@ -27,6 +27,9 @@ func TestSveAssembler(t *testing.T) {
 		ins string
 	}{
 		// scalar instructions
+		{"    WORD $0x53047ef7 // lsr w23, w23, #4"},
+		{"    WORD $0x5ac00b39 // rev w25, w25"},
+		{"    WORD $0x0b0f01ce // add w14, w14, w15"},
 		{"    WORD $0x8b0f01ce // add x14, x14, x15"},
 		{"    WORD $0x8b0f0129 // add x9, x9, x15"},
 		{"    WORD $0x8b030441 // add x1, x2, x3, lsl #1"},
