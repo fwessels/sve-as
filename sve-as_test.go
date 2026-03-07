@@ -508,8 +508,10 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xa440a173 // ld1b  { z19.s }, p0/z, [x11]"},
 		{"    WORD $0xa460a173 // ld1b  { z19.d }, p0/z, [x11]"},
 		{"    WORD $0x84155e94 // ld1b  { z20.s }, p7/z, [x20, z21.s, uxtw]"},
+		{"    WORD $0xa01f87d8 // ld1b  { z24.b-z27.b }, p9/z, [x30, x31]"},                // identical to following instruction
 		{"    WORD $0xa01f87d8 // ld1b  { z24.b, z25.b, z26.b, z27.b }, p9/z, [x30, x31]"}, // consecutive
 		{"    WORD $0xa472c66d // ld4b  { z13.b, z14.b, z15.b, z16.b }, p1/z, [x19, x18]"}, // interleaved
+		{"    WORD $0xa472c66d // ld4b  { z13.b-z16.b }, p1/z, [x19, x18]"},                // alternative syntax
 		{"    WORD $0x04018f06 // lsr   z6.h, p3/m, z6.h, #8"},
 		{"    WORD $0x04419607 // lsr   z7.s, p5/m, z7.s, #16"},
 		{"    WORD $0x04419b0b // lsr   z11.s, p6/m, z11.s, #8"},
@@ -518,6 +520,9 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x046896d2 // lsr   z18.s, z22.s, #24"},
 		{"    WORD $0x047896d2 // lsr   z18.s, z22.s, #8"},
 		{"    WORD $0x0499bf6a // clz   z10.s, p7/m, z27.s"},
+		{"    WORD $0x0419a861 // clz   z1.b, p2/m, z3.b"},
+		{"    WORD $0x0459aca4 // clz   z4.h, p3/m, z5.h"},
+		{"    WORD $0x04d9b107 // clz   z7.d, p4/m, z8.d"},
 		{"    WORD $0x049aa440 // cnt   z0.s, p1/m, z2.s"},
 		{"    WORD $0x04c130a3 // uaddv d3, p4, z5.d"},
 		{"    WORD $0x04c034c4 // saddv d4, p5, z6.d"},
@@ -547,6 +552,8 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xe440fe8b // st1b  {z11.s}, p7, [x20]"},
 		{"    WORD $0xe5800281 // str   p1, [x20]"},
 		{"    WORD $0x45016802 // pmullb z2.q, z0.d, z1.d"},
+		{"    WORD $0x454c696a // pmullb z10.h, z11.b, z12.b"},
+		{"    WORD $0x45d66ab4 // pmullb z20.d, z21.s, z22.s"},
 		{"    WORD $0x45036c85 // pmullt z5.q, z4.d, z3.d"},
 		{"    WORD $0x0424400c // index z12.b, #0, #4"},
 		{"    WORD $0x042f420d // index z13.b, #-16, #15"},

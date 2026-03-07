@@ -1963,11 +1963,16 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		}
 	case "pmullb", "pmullt":
 		if ok, zd, zn, zm, Td, T := is_z_zz_2t(args); ok {
-			templ := "0	1	0	0	0	1	0	1	0	0	0	Zm	0	1	1	0	1	0	Zn	Zd"
-			if mnem == "pmullt" {
-				templ = "0	1	0	0	0	1	0	1	0	0	0	Zm	0	1	1	0	1	1	Zn	Zd"
-			}
-			if Td == "q" && T == "d" {
+			templ := "0	1	0	0	0	1	0	1	size	0	Zm	0	1	1	0	1	T	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "T", If(mnem == "pmullt", "1", "0"))
+			if Td == "h" && T == "b" {
+				templ = strings.ReplaceAll(templ, "size", "0	1")
+				return assem_z_zz(templ, zd, zn, zm), 0, nil
+			} else if Td == "d" && T == "s" {
+				templ = strings.ReplaceAll(templ, "size", "1	1")
+				return assem_z_zz(templ, zd, zn, zm), 0, nil
+			} else if Td == "q" && T == "d" {
+				templ = strings.ReplaceAll(templ, "size", "0	0")
 				return assem_z_zz(templ, zd, zn, zm), 0, nil
 			}
 		}
@@ -3392,6 +3397,20 @@ func is_zt4_p_rr(args []string) (ok bool, zt, pg, rn, rm int, T string) {
 		rn = getR(strings.ReplaceAll(args[7], "[", ""))
 		rm = getR(strings.ReplaceAll(args[8], "]", ""))
 		ok = true
+	} else if len(args) == 6 && args[0] == "{" && args[2] == "}" && strings.Contains(args[1], "-") {
+		parts := strings.Split(args[1], "-")
+		if len(parts) == 2 {
+			var zt2 int
+			var T2 string
+			zt, T, _ = getZ(parts[0])
+			zt2, T2, _ = getZ(parts[1])
+			if zt != -1 && T == T2 && zt2 == zt+3 {
+				pg = getP(strings.Split(args[3], "/")[0])
+				rn = getR(strings.ReplaceAll(args[4], "[", ""))
+				rm = getR(strings.ReplaceAll(args[5], "]", ""))
+				ok = zt != -1 && pg != -1 && rn != -1 && rm != -1
+			}
+		}
 	}
 	return
 }
