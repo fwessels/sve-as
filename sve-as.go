@@ -963,6 +963,15 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 			}
 		}
+	case "ld4w":
+		if ok, zt, pg, rn, imm, T := is_z4_p_bi(args); ok && strings.ToLower(T) == "s" && 0 <= pg && pg <= 7 && imm&3 == 0 && -8*4 <= imm && imm <= 7*4 {
+			templ := "1	0	1	0	0	1	0	1	0	1	1	0	imm4	1	1	1	Pg	Rn	Zt"
+			imm = imm / 4
+			if imm < 0 {
+				imm = (1 << 4) + imm
+			}
+			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
+		}
 	case "ldrsh", "ldrh", "strh":
 		if ok, rt, rn, imm, postIndex, writeBack := is_r_bi(args); ok {
 			opc := -1

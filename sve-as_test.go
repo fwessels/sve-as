@@ -497,7 +497,8 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0xa0404882 // ld1w { z2.s, z3.s }, p10/z, [x4]"},
 		{"    WORD $0xa04050c4 // ld1w { z4.s-z5.s }, p12/z, [x6]"},
 		{"    WORD $0xa047c124 // ld1w { z4.s, z5.s, z6.s, z7.s }, p8/z, [x9, #28, MUL VL]"},
-		{"    WORD $0xa040c968 // ld1w { z8.s-z11.s }, p10/z, [x11]"}, // consecutive
+		{"    WORD $0xa040c968 // ld1w { z8.s-z11.s }, p10/z, [x11]"},                        // consecutive
+		{"    WORD $0xa567fd25 // ld4w { z5.s, z6.s, z7.s, z8.s }, p7/z, [x9, #28, MUL VL]"}, // interleaved
 		{"    WORD $0x855c5482 // ld1w  { z2.s }, p5/z, [x4, z28.s, sxtw]"},
 		{"    WORD $0xa54b4450 // ld1w  { z16.s }, p1/z, [x2, x11, lsl #2]"},
 		{"    WORD $0x8540de9b // ld1rw { z27.s }, p7/z, [x20]"},
