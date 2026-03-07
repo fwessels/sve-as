@@ -2933,6 +2933,20 @@ func is_p_rr(args []string) (ok bool, pd, rn, rm, sf int, T string) {
 	return
 }
 
+func is_p_pp(args []string) (ok bool, pdn, pg int, T string) {
+	if len(args) == 3 {
+		var t1, t2 string
+		pdn, t1 = getPdes(args[0])
+		pg = getP(args[1])
+		var pn int
+		pn, t2 = getPdes(args[2])
+		if pdn != -1 && pg != -1 && pn != -1 && pdn == pn && t1 == t2 {
+			return true, pdn, pg, t1
+		}
+	}
+	return
+}
+
 func is_p_p_zz(args []string) (ok bool, pd, pg, zn, zm int, T string) {
 	if len(args) == 4 {
 		var t1, t2, t3 string
