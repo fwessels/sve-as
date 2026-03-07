@@ -1938,6 +1938,20 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "op", "0")
 			return assem_p_p(templ, pg, pn), 0, nil
 		}
+	case "pfirst":
+		if ok, pdn, pg, T := is_p_pp(args); ok && strings.ToLower(T) == "b" {
+			templ := "0	0	1	0	0	1	0	1	0	1	0	1	1	0	0	0	1	1	0	0	0	0	0	Pg	0	Pdn"
+			templ = strings.ReplaceAll(templ, "Pdn", "Pn")
+			return assem_p_p(templ, pg, pdn), 0, nil
+		}
+	case "pnext":
+		if ok, pdn, pv, T := is_p_pp(args); ok {
+			templ := "0	0	1	0	0	1	0	1	size	0	1	1	0	0	1	1	1	0	0	0	1	0	Pv	0	Pdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Pv", "Pg")
+			templ = strings.ReplaceAll(templ, "Pdn", "Pn")
+			return assem_p_p(templ, pv, pdn), 0, nil
+		}
 	case "pmullb", "pmullt":
 		if ok, zd, zn, zm, Td, T := is_z_zz_2t(args); ok {
 			templ := "0	1	0	0	0	1	0	1	0	0	0	Zm	0	1	1	0	1	0	Zn	Zd"

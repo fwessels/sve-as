@@ -477,6 +477,8 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x45acc96a // histcnt z10.s, p2/z, z11.s, z12.s"},
 		{"    WORD $0x45edcd8b // histcnt z11.d, p3/z, z12.d, z13.d"},
 		{"    WORD $0x2550d0a0 // ptest p4, p5.b"},
+		{"    WORD $0x2558c083 // pfirst p3.b, p4, p3.b"},
+		{"    WORD $0x2599c4c5 // pnext p5.s, p6, p5.s"},
 		{"    WORD $0x2598e084 // ptrue p4.s, VL4"},
 		{"    WORD $0x2598e3e3 // ptrue p3.s"},
 		{"    WORD $0x25a31c41 // whilelo p1.s, x2, x3"},
