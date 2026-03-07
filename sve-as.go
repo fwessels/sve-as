@@ -585,6 +585,52 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_p_z(templ, zd, pg, zn), 0, nil
 		}
+	case "cntb", "cnth", "cntw", "cntd":
+		if ok, rd, pattern, imm4 := is_r_pat_mul(args); ok {
+			size := map[byte]string{'b': "00", 'h': "01", 'w': "10", 'd': "11"}[mnem[3]]
+			templ := "0	0	0	0	0	1	0	0	size	1	0	imm4	1	1	1	0	0	0	pattern	Rd"
+			templ = strings.ReplaceAll(templ, "size", size)
+			return assem_r_pat_mul(templ, rd, pattern, imm4), 0, nil
+		}
+	case "incb", "inch", "incw", "incd":
+		size := map[byte]string{'b': "00", 'h': "01", 'w': "10", 'd': "11"}[mnem[3]]
+		if ok, rd, pattern, imm4 := is_r_pat_mul(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	1	1	imm4	1	1	1	0	0	0	pattern	Rd"
+			templ = strings.ReplaceAll(templ, "size", size)
+			return assem_r_pat_mul(templ, rd, pattern, imm4), 0, nil
+		} else if mnem != "incb" {
+			if ok, zdn, pattern, imm4, _ := is_z_pat_mul(args); ok {
+				templ := "0	0	0	0	0	1	0	0	size	1	1	imm4	1	1	0	0	0	0	pattern	Zdn"
+				templ = strings.ReplaceAll(templ, "size", size)
+				return assem_z_pat_mul(templ, zdn, pattern, imm4), 0, nil
+			}
+		}
+	case "incp", "decp":
+		D := If(mnem == "decp", "1", "0")
+		if ok, rd, pn, T := is_r_pt(args); ok {
+			templ := "0	0	1	0	0	1	0	1	size	1	0	1	1	0	D	1	0	0	0	1	0	0	Pn	Rdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "D", D)
+			return assem_r_pt(templ, rd, pn), 0, nil
+		} else if ok, zdn, pn, T := is_z2_pt(args); ok {
+			templ := "0	0	1	0	0	1	0	1	size	1	0	1	1	0	D	1	0	0	0	0	0	0	Pn	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "D", D)
+			return assem_z_pt(templ, zdn, pn), 0, nil
+		}
+	case "decb", "dech", "decw", "decd":
+		size := map[byte]string{'b': "00", 'h': "01", 'w': "10", 'd': "11"}[mnem[3]]
+		if ok, rd, pattern, imm4 := is_r_pat_mul(args); ok {
+			templ := "0	0	0	0	0	1	0	0	size	1	1	imm4	1	1	1	1	0	0	pattern	Rd"
+			templ = strings.ReplaceAll(templ, "size", size)
+			return assem_r_pat_mul(templ, rd, pattern, imm4), 0, nil
+		} else if mnem != "decb" {
+			if ok, zdn, pattern, imm4, _ := is_z_pat_mul(args); ok {
+				templ := "0	0	0	0	0	1	0	0	size	1	1	imm4	1	1	0	1	0	0	pattern	Zdn"
+				templ = strings.ReplaceAll(templ, "size", size)
+				return assem_z_pat_mul(templ, zdn, pattern, imm4), 0, nil
+			}
+		}
 	case "ctz":
 		if ok, rd, rn, shift, imm, sf := is_r_r(args); ok && len(args) == 2 && shift == 0 && imm == 0 {
 			templ := "sf	1	0	1	1	0	1	0	1	1	0	0	0	0	0	0	0	0	0	1	1	0	Rn	Rd"
@@ -1217,54 +1263,8 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			if len(args) == 2 {
 				pattern = args[1]
 			}
-			switch strings.ToUpper(pattern) {
-			case "POW2":
-				templ = strings.ReplaceAll(templ, "pattern", "00000")
-			case "VL1":
-				templ = strings.ReplaceAll(templ, "pattern", "00001")
-			case "VL2":
-				templ = strings.ReplaceAll(templ, "pattern", "00010")
-			case "VL3":
-				templ = strings.ReplaceAll(templ, "pattern", "00011")
-			case "VL4":
-				templ = strings.ReplaceAll(templ, "pattern", "00100")
-			case "VL5":
-				templ = strings.ReplaceAll(templ, "pattern", "00101")
-			case "VL6":
-				templ = strings.ReplaceAll(templ, "pattern", "00110")
-			case "VL7":
-				templ = strings.ReplaceAll(templ, "pattern", "00111")
-			case "VL8":
-				templ = strings.ReplaceAll(templ, "pattern", "01000")
-			case "VL16":
-				templ = strings.ReplaceAll(templ, "pattern", "01001")
-			case "VL32":
-				templ = strings.ReplaceAll(templ, "pattern", "01010")
-			case "VL64":
-				templ = strings.ReplaceAll(templ, "pattern", "01011")
-			case "VL128":
-				templ = strings.ReplaceAll(templ, "pattern", "01100")
-			case "VL256":
-				templ = strings.ReplaceAll(templ, "pattern", "01101")
-			case "#uimm5":
-				templ = strings.ReplaceAll(templ, "pattern", "0111x")
-			// TODO: fix this
-			// case "#uimm5":
-			// 	templ = strings.ReplaceAll(templ, "pattern", "101x1")
-			// case "#uimm5":
-			// 	templ = strings.ReplaceAll(templ, "pattern", "10110")
-			// case "#uimm5":
-			// 	templ = strings.ReplaceAll(templ, "pattern", "1x0x1")
-			// case "#uimm5":
-			// 	templ = strings.ReplaceAll(templ, "pattern", "1x010")
-			// case "#uimm5":
-			// 	templ = strings.ReplaceAll(templ, "pattern", "1xx00")
-			case "MUL4":
-				templ = strings.ReplaceAll(templ, "pattern", "11101")
-			case "MUL3":
-				templ = strings.ReplaceAll(templ, "pattern", "11110")
-			case "ALL":
-				templ = strings.ReplaceAll(templ, "pattern", "11111")
+			if val, ok := getPattern(pattern); ok {
+				templ = strings.ReplaceAll(templ, "pattern", fmt.Sprintf("%05b", val))
 			}
 			return assem_p(templ, pd), 0, nil
 		}
@@ -1281,6 +1281,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 	case "eor3":
 		if ok, zd, zn, zm, za, T := is_z_zzz(args); ok && strings.ToUpper(T) == "D" {
 			templ := "0	0	0	0	0	1	0	0	0	0	1	Zm	0	0	1	1	1	0	Zk	Zdn"
+			if zd == zn {
+				return assem_z2_zz(templ, zd, zm, za), 0, nil
+			}
+		}
+	case "bcax":
+		if ok, zd, zn, zm, za, T := is_z_zzz(args); ok && strings.ToUpper(T) == "D" {
+			templ := "0	0	0	0	0	1	0	0	0	1	1	Zm	0	0	1	1	1	0	Zk	Zdn"
 			if zd == zn {
 				return assem_z2_zz(templ, zd, zm, za), 0, nil
 			}
@@ -3546,6 +3553,137 @@ func is_z_p_rr(args []string) (ok bool, zt, pg, rn, rm, shift int, T string) {
 	return
 }
 
+func getPattern(s string) (int, bool) {
+	switch strings.ToLower(s) {
+	case "pow2":
+		return 0, true
+	case "vl1":
+		return 1, true
+	case "vl2":
+		return 2, true
+	case "vl3":
+		return 3, true
+	case "vl4":
+		return 4, true
+	case "vl5":
+		return 5, true
+	case "vl6":
+		return 6, true
+	case "vl7":
+		return 7, true
+	case "vl8":
+		return 8, true
+	case "vl16":
+		return 9, true
+	case "vl32":
+		return 10, true
+	case "vl64":
+		return 11, true
+	case "vl128":
+		return 12, true
+	case "vl256":
+		return 13, true
+	case "mul4":
+		return 29, true
+	case "mul3":
+		return 30, true
+	case "all":
+		return 31, true
+	}
+	return 0, false
+}
+
+func is_r_pat_mul(args []string) (ok bool, rd, pattern, imm4 int) {
+	if len(args) == 0 {
+		return
+	}
+	rd = getR(args[0])
+	if rd == -1 {
+		return
+	}
+	pattern = 31 // default: ALL
+	imm4 = 0     // default: MUL #1
+	if len(args) == 1 {
+		return true, rd, pattern, imm4
+	}
+	var patOk bool
+	pattern, patOk = getPattern(args[1])
+	if !patOk {
+		return
+	}
+	if len(args) == 2 {
+		return true, rd, pattern, imm4
+	}
+	if len(args) == 4 && strings.ToLower(args[2]) == "mul" {
+		if immOk, imm := getImm(args[3]); immOk && imm >= 1 && imm <= 16 {
+			return true, rd, pattern, imm - 1
+		}
+	}
+	return
+}
+
+func is_z_pat_mul(args []string) (ok bool, zdn, pattern, imm4 int, T string) {
+	if len(args) == 0 {
+		return
+	}
+	var idx int
+	zdn, T, idx = getZ(args[0])
+	if zdn == -1 || T == "" || idx != 0 {
+		return
+	}
+	pattern = 31 // default: ALL
+	imm4 = 0     // default: MUL #1
+	if len(args) == 1 {
+		return true, zdn, pattern, imm4, T
+	}
+	var patOk bool
+	pattern, patOk = getPattern(args[1])
+	if !patOk {
+		return
+	}
+	if len(args) == 2 {
+		return true, zdn, pattern, imm4, T
+	}
+	if len(args) == 4 && strings.ToLower(args[2]) == "mul" {
+		if immOk, imm := getImm(args[3]); immOk && imm >= 1 && imm <= 16 {
+			return true, zdn, pattern, imm - 1, T
+		}
+	}
+	return
+}
+
+func is_r_pt(args []string) (ok bool, rd, pn int, T string) {
+	if len(args) != 2 {
+		return
+	}
+	rd = getR(args[0])
+	if rd == -1 {
+		return
+	}
+	var p int
+	p, T = getPdes(args[1])
+	if p == -1 || T == "" {
+		return
+	}
+	return true, rd, p, T
+}
+
+func is_z2_pt(args []string) (ok bool, zdn, pn int, T string) {
+	if len(args) != 2 {
+		return
+	}
+	var idx int
+	zdn, T, idx = getZ(args[0])
+	if zdn == -1 || T == "" || idx != 0 {
+		return
+	}
+	p, Tp := getPdes(args[1])
+	if p == -1 || !strings.EqualFold(T, Tp) {
+		return
+	}
+	return true, zdn, p, T
+}
+
 func assem_prefixed_z_p_z(ins, arg_1 string, zd, pg, zn int, T string) (opcode, opcode2 uint32, err error) {
 	//
 	// insert 'MOVPRFX (predicated)' instruction
@@ -4159,6 +4297,56 @@ func assem_z_p_z(template string, zd, pg, zn int) uint32 {
 	opcode = strings.ReplaceAll(opcode, "Zd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zd), 2)))
 	opcode = strings.ReplaceAll(opcode, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(pg), 2)))
 	opcode = strings.ReplaceAll(opcode, "Zn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zn), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_r_pat_mul(template string, rd, pattern, imm4 int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Rd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rd), 2)))
+	opcode = strings.ReplaceAll(opcode, "pattern", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(pattern), 2)))
+	opcode = strings.ReplaceAll(opcode, "imm4", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(imm4), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z_pat_mul(template string, zdn, pattern, imm4 int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+	opcode = strings.ReplaceAll(opcode, "pattern", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(pattern), 2)))
+	opcode = strings.ReplaceAll(opcode, "imm4", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(imm4), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_r_pt(template string, rdn, pn int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Rdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rdn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Pn", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pn), 2)))
+	opcode = strings.ReplaceAll(opcode, "\t", "")
+	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
+		panic(err)
+	} else {
+		return uint32(code)
+	}
+}
+
+func assem_z_pt(template string, zdn, pn int) uint32 {
+	opcode := template
+	opcode = strings.ReplaceAll(opcode, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+	opcode = strings.ReplaceAll(opcode, "Pn", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pn), 2)))
 	opcode = strings.ReplaceAll(opcode, "\t", "")
 	if code, err := strconv.ParseUint(opcode, 2, 32); err != nil {
 		panic(err)
