@@ -852,15 +852,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ := "1	1	1	0	0	1	0	1	0	1	0	Zm	1	xs	0	Pg	Rn	Zt"
 				return assem_z_p_bz(templ, zt, pg, rn, zm, xs), 0, nil
 			}
-		} else if ok, zt, pg, rn, rm, shift, T := is_z_p_rr(args); ok && shift == 2 {
+		} else if ok, zt, pg, rn, rm, shift, T := is_z_p_rr(args); ok && strings.ContainsAny(T, "sdSD") && shift == 2 {
 			templ := "1	1	1	0	0	1	0	1	0	1	sz	Rm	0	1	0	Pg	Rn	Zt"
-			if strings.ToLower(T) == "s" {
-				templ = strings.ReplaceAll(templ, "sz", "0")
+			templ = strings.ReplaceAll(templ, "sz", If(strings.ToLower(T) == "d", "1", "0"))
+			if templ != "" {
+				return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 			}
-			if strings.ToLower(T) == "d" {
-				templ = strings.ReplaceAll(templ, "sz", "1")
-			}
-			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
 		}
 	case "st1h":
 		if ok, zt, pg, rn, zm, xs, T := is_z_p_bz(args); ok {
@@ -885,7 +882,9 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			case "q":
 				templ = "1	0	1	0	0	1	0	1	0	0	0	Rm	1	0	0	Pg	Rn	Zt"
 			}
-			return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
+			if templ != "" {
+				return assem_z_p_rr(templ, zt, pg, rn, rm), 0, nil
+			}
 		} else if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && pg <= 7 && -8 <= imm && imm <= 7 {
 			var templ string
 			switch strings.ToLower(T) {
@@ -896,10 +895,12 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			case "q":
 				templ = "1	0	1	0	0	1	0	1	0	0	0	1	imm4	0	0	1	Pg	Rn	Zt"
 			}
-			if imm < 0 {
-				imm = (1 << 4) + imm
+			if templ != "" {
+				if imm < 0 {
+					imm = (1 << 4) + imm
+				}
+				return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 			}
-			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 		} else if ok, zt, pg, rn, imm, T := is_z2_p_bi(args); ok && strings.ToLower(T) == "s" && zt&1 == 0 && 8 <= pg && pg <= 15 && imm&1 == 0 && -8*2 <= imm && imm <= 7*2 {
 			templ := "1	0	1	0	0	0	0	0	0	1	0	0	imm4	0	1	0	PNg	Rn	Zt	0"
 			templ = strings.ReplaceAll(templ, "PNg", "Pg")
@@ -922,12 +923,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 		}
 	case "ld1rw":
-		if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && 0 <= imm && imm <= 252 && imm%4 == 0 {
-			if strings.ToLower(T) == "s" || strings.ToLower(T) == "d" {
-				templ := "1	0	0	0	0	1	0	1	0	1	imm6	1	dtypel	Pg	Rn	Zt"
-				templ = strings.ReplaceAll(templ, "dtypel", If(strings.ToLower(T) == "d", "11", "10"))
-				return assem_z_p_bi(templ, zt, pg, rn, "imm6", imm/4), 0, nil
-			}
+		if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && strings.ContainsAny(T, "sdSD") && 0 <= imm && imm <= 252 && imm%4 == 0 {
+			templ := "1	0	0	0	0	1	0	1	0	1	imm6	1	dtypel	Pg	Rn	Zt"
+			templ = strings.ReplaceAll(templ, "dtypel", If(strings.ToLower(T) == "d", "11", "10"))
+			return assem_z_p_bi(templ, zt, pg, rn, "imm6", imm/4), 0, nil
 		}
 	case "ld1h":
 		if ok, zt, pg, rn, zm, xs, T := is_z_p_bz(args); ok {
