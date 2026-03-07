@@ -922,14 +922,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 		}
 	case "ld1rw":
-		if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok {
-			var templ string
-			if T == "s" {
-				templ = "1	0	0	0	0	1	0	1	0	1	imm6	1	1	0	Pg	Rn	Zt"
-			} else if T == "d" {
-				templ = "1	0	0	0	0	1	0	1	0	1	imm6	1	1	1	Pg	Rn	Zt"
-			}
-			if templ != "" {
+		if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && 0 <= imm && imm <= 252 && imm%4 == 0 {
+			if strings.ToLower(T) == "s" || strings.ToLower(T) == "d" {
+				templ := "1	0	0	0	0	1	0	1	0	1	imm6	1	dtypel	Pg	Rn	Zt"
+				templ = strings.ReplaceAll(templ, "dtypel", If(strings.ToLower(T) == "d", "11", "10"))
 				return assem_z_p_bi(templ, zt, pg, rn, "imm6", imm/4), 0, nil
 			}
 		}
@@ -954,6 +950,9 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, zt, pg, rn, imm, T := is_z_p_bi(args); ok && -8 <= imm && imm <= 7 {
 			templ := "1	0	1	0	0	1	0	0	0	size	0	imm4	1	0	1	Pg	Rn	Zt"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			if imm < 0 {
+				imm = (1 << 4) + imm
+			}
 			return assem_z_p_bi(templ, zt, pg, rn, "imm4", imm), 0, nil
 		}
 	case "ld4b":
@@ -1747,7 +1746,6 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 		} else if ok, rd, rn, rm, shift, imm, sf := is_r_rr(args); ok && shift == 0 && imm == 0 {
 			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	0	0	1	1	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "sf", sf)
-			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, rn, rm, "", 0), 0, nil
 		}
 	case "sdivr":
@@ -2311,6 +2309,10 @@ func getImm(imm string) (bool, int) {
 		if num, err := strconv.ParseUint(imm, 16, 64); err == nil {
 			return true, int(num)
 		}
+	} else if len(imm) > 4 && imm[:4] == "#-0x" {
+		if num, err := strconv.ParseInt(imm[4:], 16, 64); err == nil {
+			return true, int(-num)
+		}
 	} else if len(imm) > 2 && imm[:2] == "#-" {
 		imm = imm[1:]
 		if num, err := strconv.ParseInt(imm, 10, 64); err == nil {
@@ -2708,6 +2710,15 @@ func is_r_bi(args []string) (ok bool, rt, xn, imm int, postIndex, writeBack bool
 	return
 }
 
+var (
+	// memAddrBracketReplacer strips [ and ] from a memory address token.
+	memAddrBracketReplacer = strings.NewReplacer("[", "", "]", "")
+	// memAddrImmReplacer strips brackets (including ]!) and normalises MUL VL.
+	memAddrImmReplacer = strings.NewReplacer("[", "", "]!", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL")
+	// memAddrVecReplacer strips [ and ] and normalises MUL VL (no write-back).
+	memAddrVecReplacer = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL")
+)
+
 func is_bi(args []string) (ok bool, xn, imm int, postIndex, writeBack bool) {
 	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]!") { // preIndex
 		if xn, imm = getMemAddrImm(args[0:]); xn != -1 {
@@ -2717,8 +2728,8 @@ func is_bi(args []string) (ok bool, xn, imm int, postIndex, writeBack bool) {
 		if xn, imm = getMemAddrImm(args[0:]); xn != -1 {
 			return true, xn, imm, false, false
 		}
-	} else if args[0][0] == '[' && strings.HasSuffix(args[0], "]") { // postIndex
-		memreg := strings.NewReplacer("[", "", "]", "").Replace(args[0])
+	} else if len(args) >= 2 && args[0][0] == '[' && strings.HasSuffix(args[0], "]") { // postIndex
+		memreg := memAddrBracketReplacer.Replace(args[0])
 		xn = getR(memreg)
 		if ok, imm := getImm(args[1]); ok && xn != -1 {
 			return true, xn, imm, true, true
@@ -2879,7 +2890,7 @@ func is_z_zi(args []string) (ok bool, zd, zn, imm, shift int, T string) {
 		zn, t2, _ = getZ(args[1])
 		if zd != -1 && zn != -1 && T == t2 {
 			if ok, imm := getImm(args[2]); ok {
-				if len(args) >= 4 && args[3] == "LSL" && args[4] == "#8" {
+				if len(args) >= 5 && args[3] == "LSL" && args[4] == "#8" {
 					return true, zd, zn, imm, 1, T
 				}
 				return true, zd, zn, imm, 0, T
@@ -3269,7 +3280,7 @@ func is_r_i(args []string) (ok bool, rd int, imm, shift int) {
 func getMemAddrImm(args []string) (xn, imm int) {
 	if args[0][0] == '[' && (strings.HasSuffix(args[len(args)-1], "]") || strings.HasSuffix(args[len(args)-1], "]!")) {
 		memaddr := strings.Join(args[0:], ", ")
-		memaddr = strings.NewReplacer("[", "", "]!", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
+		memaddr = memAddrImmReplacer.Replace(memaddr)
 		mas := strings.Split(memaddr, ", ")
 		if len(mas) >= 1 {
 			xn = getR(mas[0])
@@ -3292,7 +3303,7 @@ func getMemAddrImm(args []string) (xn, imm int) {
 func getMemAddrRegister(args []string) (rn, rm, option, amount int) {
 	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 		memaddr := strings.Join(args[0:], ", ")
-		memaddr = strings.NewReplacer("[", "", "]", "").Replace(memaddr)
+		memaddr = memAddrBracketReplacer.Replace(memaddr)
 		mas := strings.Split(memaddr, ", ")
 		if len(mas) >= 2 {
 			rn = getR(mas[0])
@@ -3324,9 +3335,9 @@ func getMemAddrRegister(args []string) (rn, rm, option, amount int) {
 func getMemAddrVectored(args []string) (rn, zm, xs int, T string) {
 	if args[0][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 		memaddr := strings.Join(args[0:], ", ")
-		memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
+		memaddr = memAddrVecReplacer.Replace(memaddr)
 		mas := strings.Split(memaddr, ", ")
-		if len(mas) >= 1 {
+		if len(mas) >= 2 {
 			rn = getR(mas[0])
 			var tm string
 			zm, tm, _ = getZ(mas[1])
@@ -3347,7 +3358,7 @@ func is_z_bi(args []string) (ok bool, zt, xn, imm int) {
 		zt, _, _ = getZ(args[0])
 		if zt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 			memaddr := strings.Join(args[1:], ", ")
-			memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
+			memaddr = memAddrVecReplacer.Replace(memaddr)
 			mas := strings.Split(memaddr, ", ")
 			if len(mas) >= 1 {
 				xn = getR(mas[0])
@@ -3369,7 +3380,7 @@ func is_p_bi(args []string) (ok bool, pt, xn, imm int) {
 		pt = getP(args[0])
 		if pt != -1 && args[1][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
 			memaddr := strings.Join(args[1:], ", ")
-			memaddr = strings.NewReplacer("[", "", "]", "", "MUL, VL", "MUL VL", "mul, vl", "MUL VL").Replace(memaddr)
+			memaddr = memAddrVecReplacer.Replace(memaddr)
 			mas := strings.Split(memaddr, ", ")
 			if len(mas) >= 1 {
 				xn = getR(mas[0])
@@ -3438,7 +3449,7 @@ func is_zt4_p_rr(args []string) (ok bool, zt, pg, rn, rm int, T string) {
 }
 
 func is_z_p_bi(args []string) (ok bool, zt, pg, rn, imm int, T string) {
-	if len(args) >= 4 && args[0] == "{" && args[2] == "}" {
+	if len(args) >= 5 && args[0] == "{" && args[2] == "}" {
 		zt, T, _ = getZ(args[1])
 		pg = getP(strings.Split(args[3], "/")[0]) // drop any trailer
 		if zt != -1 && pg != -1 && args[4][0] == '[' && strings.HasSuffix(args[len(args)-1], "]") {
