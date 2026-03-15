@@ -198,6 +198,14 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Vd", "Rd")
 			return assem_r_p_z(templ, vd, pg, zn), 0, nil
 		}
+	case "fmaxnmv", "fminnmv":
+		if ok, vd, pg, zn, T := is_v_p_z(args); ok && T != "b" {
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	1	0	N	0	0	1	Pg	Zn	Vd"
+			templ = strings.ReplaceAll(templ, "N", If(mnem == "fminnmv", "1", "0"))
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Vd", "Rd")
+			return assem_r_p_z(templ, vd, pg, zn), 0, nil
+		}
 	case "tst":
 		if ok, rn, rm, sf := is_rr(args); ok {
 			// equivalent to "ands xzr, <xn>, <xm>{, <shift> #<amount>}"
@@ -2515,7 +2523,7 @@ func getV(v string) int {
 	//     s0 |  32 bits | lower 32 bits
 	//     h0 |  16 bits | lower 16 bits
 	//     b0 |   8 bits | lower 8 bits
-	if len(v) > 0 && (v[0] == 'd') {
+	if len(v) > 1 && (v[0] == 'd' || v[0] == 's' || v[0] == 'h' || v[0] == 'b') {
 		if num, err := strconv.ParseInt(v[1:], 10, 32); err == nil && num < 32 {
 			return int(num)
 		}
