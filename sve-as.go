@@ -1934,10 +1934,20 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z_p_z(templ, zd, pg, zn), 0, nil
 			}
 		}
-	case "fmla":
+	case "fmla", "fmls", "fnmla":
 		if ok, zda, pg, zn, zm, T := is_z_p_zz2(args); ok {
 			if T != "b" {
-				templ := "0	1	1	0	0	1	0	1	size	1	Zm	0	0	0	Pg	Zn	Zda"
+				var op string
+				switch mnem {
+				case "fmla":
+					op = "0	0	0"
+				case "fmls":
+					op = "0	0	1"
+				case "fnmla":
+					op = "0	1	0"
+				}
+				templ := "0	1	1	0	0	1	0	1	size	1	Zm	op	Pg	Zn	Zda"
+				templ = strings.ReplaceAll(templ, "op", op)
 				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 				return assem_z_p_zz(templ, zda, pg, zn, zm), 0, nil
 			}
