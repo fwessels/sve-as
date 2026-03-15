@@ -208,18 +208,17 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 	if err := pp.Process(fname, bytes.NewReader(buf), &preprocessed); err != nil {
 		return "", err
 	}
-
 	assembled := strings.Builder{}
 	scanner := bufio.NewScanner(&preprocessed)
 
 	for lineno := 0; scanner.Scan(); lineno++ {
 		line := scanner.Text()
 		// fmt.Println(lineno, line)
-		parts := strings.Split(line, "//")
+		baseLine, inlineComment, hasInlineComment := strings.Cut(line, "//")
 		var comments string
-		if len(parts) == 2 {
-			line = strings.TrimRightFunc(parts[0], func(r rune) bool { return unicode.IsSpace(r) })
-			comments = parts[0][len(line):] + "//" + parts[1]
+		if hasInlineComment {
+			line = strings.TrimRightFunc(baseLine, func(r rune) bool { return unicode.IsSpace(r) })
+			comments = baseLine[len(line):] + "//" + inlineComment
 		}
 		if strings.TrimSpace(line) == "" ||
 			strings.HasPrefix(strings.TrimSpace(line), "//") ||
@@ -236,11 +235,20 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 				fmt.Println(err)
 				os.Exit(2)
 			}
+			inlineComment = strings.TrimSpace(inlineComment)
 			if opcode2 == 0 {
 				line = fmt.Sprintf("    WORD $0x%08x // %s", opcode, strings.TrimSpace(line))
+				if hasInlineComment && inlineComment != "" {
+					line += fmt.Sprintf(" /* %s */", inlineComment)
+					comments = ""
+				}
 			} else {
 				oc64 := uint64(opcode2)<<32 | uint64(opcode)
 				line = fmt.Sprintf("    DWORD $0x%016x // %s", oc64, strings.TrimSpace(line))
+				if hasInlineComment && inlineComment != "" {
+					line += fmt.Sprintf(" /* %s */", inlineComment)
+					comments = ""
+				}
 			}
 		}
 		assembled.WriteString(line + comments + "\n")
@@ -359,21 +367,34 @@ func translateBackToPlan9s(opcodes string) (string, error) {
 	// replace opcodes with plan9 instructions using objdump source line numbers
 	for lineno := 1; scanner.Scan(); lineno++ {
 		line := scanner.Text()
+		sourceComment := ""
+		if idx := strings.Index(line, "//"); idx >= 0 {
+			source := strings.TrimSpace(line[idx+2:])
+			if blockStart := strings.Index(source, "/*"); blockStart >= 0 {
+				if blockEnd := strings.Index(source[blockStart+2:], "*/"); blockEnd >= 0 {
+					sourceComment = strings.TrimSpace(source[blockStart+2 : blockStart+2+blockEnd])
+					source = strings.TrimSpace(source[:blockStart])
+				}
+			}
+			if pt, ok := passThrough(source); ok {
+				line = "    " + pt
+				if sourceComment != "" {
+					line += " // " + sourceComment
+				}
+				plan9s.WriteString(line + "\n")
+				continue
+			}
+		}
 		if pt, ok := passThrough(line); ok {
 			// Preserve symbolic form (e.g. labels) from the original source.
 			line = "    " + pt
 		} else if strings.HasPrefix(strings.TrimSpace(line), "WORD $0x") {
-			if idx := strings.Index(line, "//"); idx >= 0 {
-				if pt, ok := passThrough(line[idx+2:]); ok {
-					// Prefer source-comment instruction when it carries labels.
-					line = "    " + pt
-					plan9s.WriteString(line + "\n")
-					continue
-				}
-			}
 			if ophex, ok := extractHex(line, "WORD $0x", 8); ok {
 				if instr, found := findByOpcode(opcodesByLine[lineno], ophex); found && instr != "?" {
 					line = "    " + instr
+					if sourceComment != "" {
+						line += " // " + sourceComment
+					}
 				}
 			}
 		} else if strings.HasPrefix(strings.TrimSpace(line), "DWORD $0x") {
@@ -385,6 +406,9 @@ func translateBackToPlan9s(opcodes string) (string, error) {
 				lowerInstr, hasLower := findByOpcode(lineOpcodes, lower)
 				if hasLower && lowerInstr != "?" {
 					line = "    " + lowerInstr
+					if sourceComment != "" {
+						line += " // " + sourceComment
+					}
 				}
 				if hasUpper && upperInstr != "?" {
 					plan9s.WriteString("    " + upperInstr + "\n")

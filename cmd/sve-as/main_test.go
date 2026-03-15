@@ -40,7 +40,7 @@ loop:
 	beq done
 	adr x1, loop
 	adr x3, $·const(sb)
-	mov x2, #0x6e3a
+	mov x2, #0x6e3a  // comment
 	movk x2, #0x4f5d, lsl #16
 	movk x2, #0xfedc, lsl #32
 	movk x2, #0x1234, lsl #48
@@ -71,7 +71,7 @@ loop:
 	BEQ done
 	ADR loop, R1
 	MOVD $·const(SB), R3
-	WORD $0xd28dc742 // mov x2, #0x6e3a
+	WORD $0xd28dc742 // mov x2, #0x6e3a /* comment */
 	WORD $0xf2a9eba2 // movk x2, #0x4f5d, lsl #16
 	WORD $0xf2dfdb82 // movk x2, #0xfedc, lsl #32
 	WORD $0xf2e24682 // movk x2, #0x1234, lsl #48
@@ -101,7 +101,7 @@ loop:
 	BEQ done
 	ADR loop, R1
 	MOVD $·const(SB), R3
-	MOVD $28218, R2
+	MOVD $28218, R2 // comment
 	MOVK $(20317<<16), R2
 	MOVK $(65244<<32), R2
 	MOVK $(4660<<48), R2
