@@ -481,6 +481,21 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x65c08d45 // fadd z5.d, p3/m, z5.d, z10.d"},
 		{"    WORD $0x658d9e8f // fdiv z15.s, p7/m, z15.s, z20.s"},
 		{"    WORD $0x04dcb41f // fabs z31.d, p5/m, z0.d"},
+		{"    WORD $0x04d6a020 // abs z0.d, p0/m, z1.d"},
+		{"    WORD $0x0496a020 // abs z0.s, p0/m, z1.s"},
+		{"    WORD $0x0456a020 // abs z0.h, p0/m, z1.h"},
+		{"    WORD $0x0416a020 // abs z0.b, p0/m, z1.b"},
+		{"    WORD $0x04d7a020 // neg z0.d, p0/m, z1.d"},
+		{"    WORD $0x0497a020 // neg z0.s, p0/m, z1.s"},
+		{"    WORD $0x0457a020 // neg z0.h, p0/m, z1.h"},
+		{"    WORD $0x0417a020 // neg z0.b, p0/m, z1.b"},
+		{"    WORD $0x04dea020 // not z0.d, p0/m, z1.d"},
+		{"    WORD $0x049ea020 // not z0.s, p0/m, z1.s"},
+		{"    WORD $0x045ea020 // not z0.h, p0/m, z1.h"},
+		{"    WORD $0x041ea020 // not z0.b, p0/m, z1.b"},
+		{"    WORD $0x04d6ae8f // abs z15.d, p3/m, z20.d"},
+		{"    WORD $0x0497bc1f // neg z31.s, p7/m, z0.s"},
+		{"    WORD $0x041eb72a // not z10.b, p5/m, z25.b"},
 		{"    WORD $0x25a088a3 // cntp x3, p2, p5.s"},
 		{"    WORD $0x25e09d5e // cntp x30, p7, p10.d"},
 		{"    WORD $0x65946d55 // fcmne p5.s, p3/z, z10.s, z20.s"},
@@ -1001,12 +1016,12 @@ func TestGetImmExpr(t *testing.T) {
 		imm  string
 		want int
 	}{
-		{"#4+8", 12},     // e.g. #OFFSET+8 with OFFSET=4
-		{"#16-4", 12},    // subtraction
-		{"#2*6", 12},     // multiplication
-		{"#1<<4", 16},    // shift
-		{"#(4+8)", 12},   // parenthesised
-		{"#0x4+8", 12},   // hex plus decimal
+		{"#4+8", 12},   // e.g. #OFFSET+8 with OFFSET=4
+		{"#16-4", 12},  // subtraction
+		{"#2*6", 12},   // multiplication
+		{"#1<<4", 16},  // shift
+		{"#(4+8)", 12}, // parenthesised
+		{"#0x4+8", 12}, // hex plus decimal
 	}
 	for _, tc := range cases {
 		ok, got := getImm(tc.imm)
