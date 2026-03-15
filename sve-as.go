@@ -1524,6 +1524,191 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z_p_z(templ, zd, pg, zn), 0, nil
 			}
 		}
+	case "fcvtzs":
+		if ok, zd, pg, zn, Td, Tn := is_z_p_z_tt(args); ok {
+			// FCVTZS <Zd>.<T>, <Pg>/M, <Zn>.<T>
+			var opc, sf string
+			switch Td + Tn {
+			case "dd":
+				opc, sf = "11", "11"
+			case "ss":
+				opc, sf = "10", "10"
+			case "sd":
+				opc, sf = "11", "00"
+			case "ds":
+				opc, sf = "11", "10"
+			}
+			if opc != "" {
+				templ := "0	1	1	0	0	1	0	1	opc	0	1	1	sf	0	1	0	1	Pg	Zn	Zd"
+				templ = strings.ReplaceAll(templ, "opc", opc)
+				templ = strings.ReplaceAll(templ, "sf", sf)
+				return assem_z_p_z(templ, zd, pg, zn), 0, nil
+			}
+		}
+	case "fadd":
+		if ok, zd, zn, zm, T := is_z_zz(args); ok && T != "b" {
+			// FADD <Zd>.<T>, <Zn>.<T>, <Zm>.<T> (unpredicated)
+			templ := "0	1	1	0	0	1	0	1	size	0	Zm	0	0	0	0	0	0	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok && T != "b" {
+			// FADD <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, <Zm>.<T> (predicated, destructive)
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	0	0	0	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok && T != "b" {
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		}
+	case "fsub":
+		if ok, zd, zn, zm, T := is_z_zz(args); ok && T != "b" {
+			// FSUB <Zd>.<T>, <Zn>.<T>, <Zm>.<T> (unpredicated)
+			templ := "0	1	1	0	0	1	0	1	size	0	Zm	0	0	0	0	0	1	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_zz(templ, zd, zn, zm), 0, nil
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok && T != "b" {
+			// FSUB <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, <Zm>.<T> (predicated, destructive)
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	0	0	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok && T != "b" {
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		}
+	case "fdiv":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok && T != "b" {
+			// FDIV <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, <Zm>.<T>
+			templ := "0	1	1	0	0	1	0	1	size	0	0	1	1	0	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok && T != "b" {
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		}
+	case "fmax":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok && T != "b" {
+			// FMAX <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, <Zm>.<T>
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	1	1	0	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok && T != "b" {
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		}
+	case "fmin":
+		if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok && T != "b" {
+			// FMIN <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, <Zm>.<T>
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	1	1	1	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok && T != "b" {
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
+		}
+	case "fabs":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FABS <Zd>.<T>, <Pg>/M, <Zn>.<T>
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	1	0	0	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "fneg":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FNEG <Zd>.<T>, <Pg>/M, <Zn>.<T>
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	1	0	1	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "fsqrt":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FSQRT <Zd>.<T>, <Pg>/M, <Zn>.<T>
+			templ := "0	1	1	0	0	1	0	1	size	0	0	1	1	0	1	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "frintn":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FRINTN <Zd>.<T>, <Pg>/M, <Zn>.<T> — round to nearest, ties to even
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	0	0	0	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "frintz":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FRINTZ <Zd>.<T>, <Pg>/M, <Zn>.<T> — round towards zero
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	0	1	1	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "frinta":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FRINTA <Zd>.<T>, <Pg>/M, <Zn>.<T> — round to nearest, ties away
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	1	0	0	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "frintm":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FRINTM <Zd>.<T>, <Pg>/M, <Zn>.<T> — round towards minus infinity
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	0	1	0	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "frintp":
+		if ok, zd, pg, zn, T := is_z_p_z(args); ok && T != "b" {
+			// FRINTP <Zd>.<T>, <Pg>/M, <Zn>.<T> — round towards plus infinity
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	0	0	1	1	0	1	Pg	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_z(templ, zd, pg, zn), 0, nil
+		}
+	case "fmad":
+		if ok, zda, pg, zn, zm, T := is_z_p_zz2(args); ok && T != "b" {
+			// FMAD <Zdn>.<T>, <Pg>/M, <Zm>.<T>, <Za>.<T>
+			templ := "0	1	1	0	0	1	0	1	size	1	Zm	1	0	0	Pg	Zn	Zda"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_p_zz(templ, zda, pg, zn, zm), 0, nil
+		}
+	case "cntp":
+		// CNTP <Xd>, <Pg>, <Pn>.<T>
+		if len(args) == 3 {
+			rd := getR(args[0])
+			pg := getP(args[1])
+			pn, T := getPdes(args[2])
+			if rd != -1 && pg != -1 && pn != -1 && T != "" {
+				templ := "0	0	1	0	0	1	0	1	size	1	0	0	0	0	0	1	0	Pg	0	Pn	Rd"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				templ = strings.ReplaceAll(templ, "Pg", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pg), 2)))
+				templ = strings.ReplaceAll(templ, "Pn", fmt.Sprintf("%0*s", 4, strconv.FormatUint(uint64(pn), 2)))
+				templ = strings.ReplaceAll(templ, "Rd", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rd), 2)))
+				templ = strings.ReplaceAll(templ, "\t", "")
+				if code, err := strconv.ParseUint(templ, 2, 32); err != nil {
+					return 0, 0, fmt.Errorf("cntp encoding error: %v", err)
+				} else {
+					return uint32(code), 0, nil
+				}
+			}
+		}
+	case "fcmeq", "fcmne", "fcmge", "fcmgt", "fcmle", "fcmlt":
+		if ok, pd, pg, zn, zm, T := is_p_p_zz(args); ok && T != "b" {
+			// FCMEQ/FCMNE: 01100101 size Zm 01 1 Pg Zn ne Pd
+			// FCMGE/FCMGT: 01100101 size Zm 01 0 Pg Zn gt Pd
+			var templ string
+			switch mnem {
+			case "fcmeq":
+				templ = "0	1	1	0	0	1	0	1	size	0	Zm	0	1	1	Pg	Zn	0	Pd"
+			case "fcmne":
+				templ = "0	1	1	0	0	1	0	1	size	0	Zm	0	1	1	Pg	Zn	1	Pd"
+			case "fcmge":
+				templ = "0	1	1	0	0	1	0	1	size	0	Zm	0	1	0	Pg	Zn	0	Pd"
+			case "fcmgt":
+				templ = "0	1	1	0	0	1	0	1	size	0	Zm	0	1	0	Pg	Zn	1	Pd"
+			case "fcmle":
+				// FCMLE is alias for FCMGE with swapped operands
+				templ = "0	1	1	0	0	1	0	1	size	0	Zm	0	1	0	Pg	Zn	0	Pd"
+				zn, zm = zm, zn
+			case "fcmlt":
+				// FCMLT is alias for FCMGT with swapped operands
+				templ = "0	1	1	0	0	1	0	1	size	0	Zm	0	1	0	Pg	Zn	1	Pd"
+				zn, zm = zm, zn
+			}
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_p_p_zz(templ, pd, pg, zn, zm), 0, nil
+		}
 	case "fmul":
 		if ok, zd, zn, zm, T := is_z_zz(args); ok {
 			if T != "b" {
@@ -1531,6 +1716,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 				return assem_z_zz(templ, zd, zn, zm), 0, nil
 			}
+		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok && T != "b" {
+			// FMUL <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, <Zm>.<T> (predicated, destructive)
+			templ := "0	1	1	0	0	1	0	1	size	0	0	0	0	1	0	1	0	0	Pg	Zm	Zdn"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z2_p_z(templ, zdn, pg, zm), 0, nil
+		} else if ok, zd, pg, zn, _, T := is_prefixed_z_p_zz(args); ok && T != "b" {
+			return assem_prefixed_z_p_z(ins, args[1], zd, pg, zn, T)
 		}
 	case "xar":
 		if ok, zd, zn, zm, imm, consec, T := is_z_zzi(args); ok && zd == zn && !consec {
