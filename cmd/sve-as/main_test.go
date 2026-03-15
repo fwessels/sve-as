@@ -33,7 +33,7 @@ const (
 
 TEXT ·snippets(SB), $0-8
 	ldr x1, [arg0+0(fp)]
-	ldr x2, [arg1+8(fp)]
+	ldr x2, [Arg1+8(fp)]
 	add x0, x1, x2
 loop:
 	cmp x3, x4
@@ -64,7 +64,7 @@ GLOBL ·const(SB), (NOPTR+RODATA), $8
 	opcodes = `
 TEXT ·snippets(SB), $0-8
 	MOVD arg0+0(FP), R1
-	MOVD arg1+8(FP), R2
+	MOVD Arg1+8(FP), R2
 	WORD $0x8b020020 // add x0, x1, x2
 loop:
 	WORD $0xeb04007f // cmp x3, x4
@@ -94,7 +94,7 @@ GLOBL ·const(SB), (16+8), $8
 	plan9s = `
 TEXT ·snippets(SB), $0-8
 	MOVD arg0+0(FP), R1
-	MOVD arg1+8(FP), R2
+	MOVD Arg1+8(FP), R2
 	ADD R2, R1, R0
 loop:
 	CMP R4, R3
