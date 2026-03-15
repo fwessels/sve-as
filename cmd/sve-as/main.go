@@ -424,11 +424,12 @@ func translateBackToPlan9s(opcodes string) (string, error) {
 func main() {
 	plan9 := flag.Bool("plan9", false, "enable plan9 disassembly for asm mode")
 	outputPath := flag.String("output-path", "", "directory for output .s files (asm mode only)")
+	force := flag.Bool("f", false, "force processing even if output is newer than input (asm mode)")
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Println("Usage: sve-as [-plan9] [-output-path <dir>] <filename.s/.asm> [...]")
+		fmt.Println("Usage: sve-as [-plan9] [-f] [-output-path <dir>] <filename.s/.asm> [...]")
 		os.Exit(1)
 	}
 
@@ -436,7 +437,7 @@ func main() {
 		fname = strings.ToLower(fname)
 		isAsm, isS := strings.HasSuffix(fname, ".asm"), strings.HasSuffix(fname, ".s")
 		if !isAsm && !isS {
-			fmt.Println("Usage: sve-as [-plan9] [-output-path <dir>] <filename.s/.asm> [...]")
+			fmt.Println("Usage: sve-as [-plan9] [-f] [-output-path <dir>] <filename.s/.asm> [...]")
 			os.Exit(1)
 		}
 
@@ -447,13 +448,22 @@ func main() {
 			var processed string
 			var err error
 			if isAsm {
-				fmt.Printf("Processing %s", fname)
 				outName := strings.ReplaceAll(filepath.Base(fname), ".asm", ".s")
 				outFname := filepath.Join(filepath.Dir(fname), outName)
 				if *outputPath != "" {
 					outFname = filepath.Join(*outputPath, outName)
 				}
-				fmt.Printf(" → %s\n", outFname)
+				if !*force {
+					if srcInfo, err := os.Stat(fname); err == nil {
+						if dstInfo, err := os.Stat(outFname); err == nil {
+							if dstInfo.ModTime().After(srcInfo.ModTime()) {
+								fmt.Printf("Skipping %s (up to date)\n", fname)
+								continue
+							}
+						}
+					}
+				}
+				fmt.Printf("Processing %s → %s\n", fname, outFname)
 				if processed, err = asm2s(fname, buf, *plan9); err != nil {
 					log.Fatal(err)
 				}
