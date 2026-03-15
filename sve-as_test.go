@@ -893,3 +893,88 @@ func TestZeroing(t *testing.T) {
 		}
 	}
 }
+
+// TestEvalIntExpr tests the integer expression evaluator used by getImm.
+func TestEvalIntExpr(t *testing.T) {
+	cases := []struct {
+		expr string
+		want int
+		ok   bool
+	}{
+		{"4+8", 12, true},
+		{"16-4", 12, true},
+		{"3*4", 12, true},
+		{"24/2", 12, true},
+		{"25%13", 12, true},
+		{"1<<3", 8, true},  // left shift
+		{"16>>1", 8, true}, // right shift
+		{"(3+1)*4", 16, true},
+		{"2*4+1", 9, true},
+		{"1+2*4", 9, true}, // precedence: multiply before add
+		{"0x10+8", 24, true},
+		{"0x10-0x4", 12, true},
+		{"-4+16", 12, true},
+		{"(8+4)", 12, true},
+		{"", 0, false},
+		{"abc", 0, false},
+		{"4/0", 0, false},
+	}
+	for _, tc := range cases {
+		ok, got := evalIntExpr(tc.expr)
+		if ok != tc.ok || (ok && got != tc.want) {
+			t.Errorf("evalIntExpr(%q): got (%d, %v), want (%d, %v)", tc.expr, got, ok, tc.want, tc.ok)
+		}
+	}
+}
+
+// TestGetImmExpr tests that getImm handles arithmetic expressions after macro expansion.
+func TestGetImmExpr(t *testing.T) {
+	cases := []struct {
+		imm  string
+		want int
+	}{
+		{"#4+8", 12},     // e.g. #OFFSET+8 with OFFSET=4
+		{"#16-4", 12},    // subtraction
+		{"#2*6", 12},     // multiplication
+		{"#1<<4", 16},    // shift
+		{"#(4+8)", 12},   // parenthesised
+		{"#0x4+8", 12},   // hex plus decimal
+	}
+	for _, tc := range cases {
+		ok, got := getImm(tc.imm)
+		if !ok || got != tc.want {
+			t.Errorf("getImm(%q): got (%d, %v), want (%d, true)", tc.imm, got, ok, tc.want)
+		}
+	}
+}
+
+// TestAssembleImmExpr verifies full assembly with expression immediates.
+// Each entry assembles to the same opcode as a plain-literal equivalent.
+func TestAssembleImmExpr(t *testing.T) {
+	cases := []struct {
+		expr  string // instruction with expression immediate
+		plain string // equivalent instruction with plain literal
+	}{
+		// add x8, x8, #64  →  opcode 0x91010108
+		{"add x8, x8, #60+4", "add x8, x8, #64"},
+		// add x2, x1, #0x20, lsl #0  →  0x91008022
+		{"add x2, x1, #0x10+0x10, lsl #0", "add x2, x1, #0x20, lsl #0"},
+		// sub x16, x2, #124  →  0xd101f050
+		{"sub x16, x2, #120+4", "sub x16, x2, #124"},
+	}
+	for _, tc := range cases {
+		oc1, oc2_1, err1 := Assemble(tc.expr)
+		oc2, oc2_2, err2 := Assemble(tc.plain)
+		if err1 != nil {
+			t.Errorf("Assemble(%q): %v", tc.expr, err1)
+			continue
+		}
+		if err2 != nil {
+			t.Errorf("Assemble(%q): %v", tc.plain, err2)
+			continue
+		}
+		if oc1 != oc2 || oc2_1 != oc2_2 {
+			t.Errorf("Assemble(%q) = 0x%08x, want 0x%08x (from %q)", tc.expr, oc1, oc2, tc.plain)
+		}
+	}
+}

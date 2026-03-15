@@ -2389,10 +2389,182 @@ func getZ(reg string) (_ int, T string, index int) {
 	return -1, "", -1
 }
 
+// evalIntExpr evaluates a simple integer arithmetic expression.
+// Supports +, -, *, /, %, <<, >> and parentheses, with hex (0x) and decimal literals.
+// Returns (false, 0) on any parse error or divide-by-zero.
+func evalIntExpr(s string) (bool, int) {
+	s = strings.TrimSpace(s)
+	p := &exprParser{s: s}
+	v, ok := p.parseExpr()
+	if !ok || p.pos != len(p.s) {
+		return false, 0
+	}
+	return true, v
+}
+
+type exprParser struct {
+	s   string
+	pos int
+}
+
+func (p *exprParser) peek() byte {
+	for p.pos < len(p.s) && p.s[p.pos] == ' ' {
+		p.pos++
+	}
+	if p.pos >= len(p.s) {
+		return 0
+	}
+	return p.s[p.pos]
+}
+
+func (p *exprParser) parseExpr() (int, bool) {
+	v, ok := p.parseTerm()
+	if !ok {
+		return 0, false
+	}
+	for {
+		c := p.peek()
+		if c != '+' && c != '-' {
+			break
+		}
+		p.pos++
+		r, ok := p.parseTerm()
+		if !ok {
+			return 0, false
+		}
+		if c == '+' {
+			v += r
+		} else {
+			v -= r
+		}
+	}
+	return v, true
+}
+
+func (p *exprParser) parseTerm() (int, bool) {
+	v, ok := p.parseShift()
+	if !ok {
+		return 0, false
+	}
+	for {
+		c := p.peek()
+		if c != '*' && c != '/' && c != '%' {
+			break
+		}
+		p.pos++
+		r, ok := p.parseShift()
+		if !ok {
+			return 0, false
+		}
+		switch c {
+		case '*':
+			v *= r
+		case '/':
+			if r == 0 {
+				return 0, false
+			}
+			v /= r
+		case '%':
+			if r == 0 {
+				return 0, false
+			}
+			v %= r
+		}
+	}
+	return v, true
+}
+
+func (p *exprParser) parseShift() (int, bool) {
+	v, ok := p.parseUnary()
+	if !ok {
+		return 0, false
+	}
+	for {
+		if p.peek() == '<' && p.pos+1 < len(p.s) && p.s[p.pos+1] == '<' {
+			p.pos += 2
+			r, ok := p.parseUnary()
+			if !ok {
+				return 0, false
+			}
+			v <<= r
+		} else if p.peek() == '>' && p.pos+1 < len(p.s) && p.s[p.pos+1] == '>' {
+			p.pos += 2
+			r, ok := p.parseUnary()
+			if !ok {
+				return 0, false
+			}
+			v >>= r
+		} else {
+			break
+		}
+	}
+	return v, true
+}
+
+func (p *exprParser) parseUnary() (int, bool) {
+	if p.peek() == '-' {
+		p.pos++
+		v, ok := p.parseFactor()
+		return -v, ok
+	}
+	return p.parseFactor()
+}
+
+func (p *exprParser) parseFactor() (int, bool) {
+	p.peek() // skip spaces
+	if p.pos >= len(p.s) {
+		return 0, false
+	}
+	if p.s[p.pos] == '(' {
+		p.pos++
+		v, ok := p.parseExpr()
+		if !ok {
+			return 0, false
+		}
+		if p.peek() != ')' {
+			return 0, false
+		}
+		p.pos++
+		return v, true
+	}
+	// hex literal
+	if p.pos+1 < len(p.s) && p.s[p.pos] == '0' && (p.s[p.pos+1] == 'x' || p.s[p.pos+1] == 'X') {
+		p.pos += 2
+		start := p.pos
+		for p.pos < len(p.s) && isHexDigit(p.s[p.pos]) {
+			p.pos++
+		}
+		if p.pos == start {
+			return 0, false
+		}
+		num, err := strconv.ParseInt(p.s[start:p.pos], 16, 64)
+		if err != nil {
+			return 0, false
+		}
+		return int(num), true
+	}
+	// decimal literal
+	start := p.pos
+	for p.pos < len(p.s) && p.s[p.pos] >= '0' && p.s[p.pos] <= '9' {
+		p.pos++
+	}
+	if p.pos == start {
+		return 0, false
+	}
+	num, err := strconv.ParseInt(p.s[start:p.pos], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return int(num), true
+}
+
+func isHexDigit(c byte) bool {
+	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+}
+
 func getImm(imm string) (bool, int) {
 	if len(imm) > 3 && imm[:3] == "#0x" {
-		imm = imm[3:]
-		if num, err := strconv.ParseUint(imm, 16, 64); err == nil {
+		if num, err := strconv.ParseUint(imm[3:], 16, 64); err == nil {
 			return true, int(num)
 		}
 	} else if len(imm) > 4 && imm[:4] == "#-0x" {
@@ -2400,15 +2572,17 @@ func getImm(imm string) (bool, int) {
 			return true, int(-num)
 		}
 	} else if len(imm) > 2 && imm[:2] == "#-" {
-		imm = imm[1:]
-		if num, err := strconv.ParseInt(imm, 10, 64); err == nil {
+		if num, err := strconv.ParseInt(imm[1:], 10, 64); err == nil {
 			return true, int(num)
 		}
 	} else if len(imm) > 0 && imm[0] == '#' {
-		imm = imm[1:]
-		if num, err := strconv.ParseUint(imm, 10, 64); err == nil {
+		if num, err := strconv.ParseUint(imm[1:], 10, 64); err == nil {
 			return true, int(num)
 		}
+	}
+	// fallback: evaluate as arithmetic expression (e.g. after macro expansion: "#4+8", "#0x4+8")
+	if len(imm) > 0 && imm[0] == '#' {
+		return evalIntExpr(imm[1:])
 	}
 	return false, 0
 }
