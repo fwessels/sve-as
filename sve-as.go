@@ -198,6 +198,19 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Vd", "Rd")
 			return assem_r_p_z(templ, vd, pg, zn), 0, nil
 		}
+	case "fadda":
+		// FADDA <Vdn>, <Pg>, <Vdn>, <Zm>.<T> — sequential FP add-accumulate
+		if len(args) == 4 {
+			vdn := getV(args[0])
+			pg := getP(args[1])
+			vdn2 := getV(args[2])
+			zm, T, _ := getZ(args[3])
+			if vdn != -1 && pg != -1 && vdn == vdn2 && zm != -1 && T != "" && T != "b" {
+				templ := "0	1	1	0	0	1	0	1	size	0	1	1	0	0	0	0	0	1	Pg	Zn	Rd"
+				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+				return assem_r_p_z(templ, vdn, pg, zm), 0, nil
+			}
+		}
 	case "fmaxnmv", "fminnmv":
 		if ok, vd, pg, zn, T := is_v_p_z(args); ok && T != "b" {
 			templ := "0	1	1	0	0	1	0	1	size	0	0	0	1	0	N	0	0	1	Pg	Zn	Vd"
