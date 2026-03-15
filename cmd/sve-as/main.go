@@ -6,10 +6,10 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -433,6 +433,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	var wg sync.WaitGroup
+	errs := make(chan error, len(args))
+
 	for _, fname := range args {
 		fname = strings.ToLower(fname)
 		isAsm, isS := strings.HasSuffix(fname, ".asm"), strings.HasSuffix(fname, ".s")
@@ -441,31 +444,43 @@ func main() {
 			os.Exit(1)
 		}
 
-		if buf, err := os.ReadFile(fname); err != nil {
-			fmt.Println("Error reading file: ", err)
-			os.Exit(1)
-		} else {
+		if isAsm {
+			outName := strings.ReplaceAll(filepath.Base(fname), ".asm", ".s")
+			outFname := filepath.Join(filepath.Dir(fname), outName)
+			if *outputPath != "" {
+				outFname = filepath.Join(*outputPath, outName)
+			}
+			if !*force {
+				if srcInfo, err := os.Stat(fname); err == nil {
+					if dstInfo, err := os.Stat(outFname); err == nil {
+						if dstInfo.ModTime().After(srcInfo.ModTime()) {
+							fmt.Printf("Skipping %s (up to date)\n", fname)
+							continue
+						}
+					}
+				}
+			}
+		}
+
+		wg.Add(1)
+		go func(fname string, isAsm, isS bool) {
+			defer wg.Done()
+			buf, err := os.ReadFile(fname)
+			if err != nil {
+				errs <- fmt.Errorf("error reading file %s: %w", fname, err)
+				return
+			}
 			var processed string
-			var err error
 			if isAsm {
 				outName := strings.ReplaceAll(filepath.Base(fname), ".asm", ".s")
 				outFname := filepath.Join(filepath.Dir(fname), outName)
 				if *outputPath != "" {
 					outFname = filepath.Join(*outputPath, outName)
 				}
-				if !*force {
-					if srcInfo, err := os.Stat(fname); err == nil {
-						if dstInfo, err := os.Stat(outFname); err == nil {
-							if dstInfo.ModTime().After(srcInfo.ModTime()) {
-								fmt.Printf("Skipping %s (up to date)\n", fname)
-								continue
-							}
-						}
-					}
-				}
 				fmt.Printf("Processing %s → %s\n", fname, outFname)
 				if processed, err = asm2s(fname, buf, *plan9); err != nil {
-					log.Fatal(err)
+					errs <- fmt.Errorf("%s: %w", fname, err)
+					return
 				}
 				fname = outFname
 			}
@@ -475,13 +490,23 @@ func main() {
 				processed, _ = assemble(buf, &containsDWordsMap)
 			}
 			if err := os.MkdirAll(filepath.Dir(fname), 0755); err != nil {
-				fmt.Println("Error creating directory: ", err)
-				os.Exit(1)
+				errs <- fmt.Errorf("error creating directory for %s: %w", fname, err)
+				return
 			}
 			if err := os.WriteFile(fname, []byte(processed), 0644); err != nil {
-				fmt.Println("Error writing file: ", err)
-				os.Exit(1)
+				errs <- fmt.Errorf("error writing %s: %w", fname, err)
+				return
 			}
-		}
+		}(fname, isAsm, isS)
 	}
+
+	wg.Wait()
+	close(errs)
+
+	exitCode := 0
+	for err := range errs {
+		fmt.Println(err)
+		exitCode = 1
+	}
+	os.Exit(exitCode)
 }
