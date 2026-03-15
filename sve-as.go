@@ -1877,9 +1877,25 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			}
 		}
 	case "scvtf":
-		if ok, zd, pg, zn, T := is_z_p_z(args); ok {
-			if T == "s" {
-				templ := "0	1	1	0	0	1	0	1	1	0	0	1	0	1	0	0	1	0	1	Pg	Zn	Zd"
+		if ok, zd, pg, zn, Td, Tn := is_z_p_z_tt(args); ok {
+			// SCVTF <Zd>.<T>, <Pg>/M, <Zn>.<T>
+			var opc, sf string
+			switch Td + Tn {
+			case "dd":
+				opc, sf = "11", "011"
+			case "ss":
+				opc, sf = "10", "010"
+			case "sd":
+				opc, sf = "11", "010"
+			case "ds":
+				opc, sf = "11", "000"
+			case "hh":
+				opc, sf = "01", "001"
+			}
+			if opc != "" {
+				templ := "0	1	1	0	0	1	0	1	opc	0	1	sf	0	1	0	1	Pg	Zn	Zd"
+				templ = strings.ReplaceAll(templ, "opc", opc)
+				templ = strings.ReplaceAll(templ, "sf", sf)
 				return assem_z_p_z(templ, zd, pg, zn), 0, nil
 			}
 		}

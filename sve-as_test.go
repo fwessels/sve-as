@@ -416,6 +416,9 @@ func TestSveAssembler(t *testing.T) {
 		{"    WORD $0x04299273 // asr z19.b, z19.b, #7"},
 		{"    WORD $0x042f9273 // asr z19.b, z19.b, #1"},
 		{"    WORD $0x6594a231 // scvtf z17.s, p0/m, z17.s"},
+		{"    WORD $0x65d6a020 // scvtf z0.d, p0/m, z1.d"},
+		{"    WORD $0x65d4a020 // scvtf z0.s, p0/m, z1.d"},
+		{"    WORD $0x65d0a020 // scvtf z0.d, p0/m, z1.s"},
 		{"    WORD $0x65b2023f // fmla z31.s, p0/M, z17.s, z18.s"},
 		// floating-point arithmetic (predicated and unpredicated)
 		{"    WORD $0x65c20020 // fadd z0.d, z1.d, z2.d"},
