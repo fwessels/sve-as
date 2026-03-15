@@ -73,19 +73,20 @@ func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDW
 	return
 }
 
-// Check for instructions to pass through and/or translate into plan9s equivalents
-func passThrough(ins string) (string, bool) {
-	allCaps := func(s string) (hasLetter bool) {
-		for _, r := range s {
-			if unicode.IsLetter(r) {
-				hasLetter = true
-				if !unicode.IsUpper(r) {
-					return false
-				}
+func allCaps(s string) (hasLetter bool) {
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			hasLetter = true
+			if !unicode.IsUpper(r) {
+				return false
 			}
 		}
-		return
 	}
+	return
+}
+
+// Check for instructions to pass through and/or translate into plan9s equivalents
+func passThrough(ins string) (string, bool) {
 	reg2Plan9s := func(reg string) string {
 		if strings.HasPrefix(reg, "x") {
 			return strings.ReplaceAll(reg, "x", "R")
@@ -221,10 +222,10 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 			comments = parts[0][len(line):] + "//" + parts[1]
 		}
 		if strings.TrimSpace(line) == "" ||
-			strings.ToLower(line) != line /* line contains any upper case letters? */ ||
 			strings.HasPrefix(strings.TrimSpace(line), "//") ||
 			strings.HasPrefix(strings.TrimSpace(line), "#include") ||
-			strings.HasSuffix(line, ":") {
+			strings.HasSuffix(line, ":") ||
+			allCaps(strings.Fields(line)[0]) /* mnemonic of instruction is all caps? (meaning: Plan9) */ {
 			// pass along verbatim
 		} else if pt, ok := passThrough(line); ok {
 			line = "    " + pt
