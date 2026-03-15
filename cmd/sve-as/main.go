@@ -398,11 +398,12 @@ func translateBackToPlan9s(opcodes string) (string, error) {
 
 func main() {
 	plan9 := flag.Bool("plan9", false, "enable plan9 disassembly for asm mode")
+	outputPath := flag.String("output-path", "", "directory for output .s files (asm mode only)")
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) < 1 {
-		fmt.Println("Usage: sve-as [-plan9] <filename.s/.asm> [...]")
+		fmt.Println("Usage: sve-as [-plan9] [-output-path <dir>] <filename.s/.asm> [...]")
 		os.Exit(1)
 	}
 
@@ -410,7 +411,7 @@ func main() {
 		fname = strings.ToLower(fname)
 		isAsm, isS := strings.HasSuffix(fname, ".asm"), strings.HasSuffix(fname, ".s")
 		if !isAsm && !isS {
-			fmt.Println("Usage: sve-as [-plan9] <filename.s/.asm> [...]")
+			fmt.Println("Usage: sve-as [-plan9] [-output-path <dir>] <filename.s/.asm> [...]")
 			os.Exit(1)
 		}
 
@@ -422,16 +423,25 @@ func main() {
 			var err error
 			if isAsm {
 				fmt.Printf("Processing %s", fname)
-				fname = strings.ReplaceAll(fname, ".asm", ".s")
-				fmt.Printf(" → %s\n", fname)
+				outName := strings.ReplaceAll(filepath.Base(fname), ".asm", ".s")
+				outFname := filepath.Join(filepath.Dir(fname), outName)
+				if *outputPath != "" {
+					outFname = filepath.Join(*outputPath, outName)
+				}
+				fmt.Printf(" → %s\n", outFname)
 				if processed, err = asm2s(fname, buf, *plan9); err != nil {
 					log.Fatal(err)
 				}
+				fname = outFname
 			}
 			if isS {
 				fmt.Println("Processing", fname)
 				_, containsDWordsMap := assemble(buf, nil)
 				processed, _ = assemble(buf, &containsDWordsMap)
+			}
+			if err := os.MkdirAll(filepath.Dir(fname), 0755); err != nil {
+				fmt.Println("Error creating directory: ", err)
+				os.Exit(1)
 			}
 			if err := os.WriteFile(fname, []byte(processed), 0644); err != nil {
 				fmt.Println("Error writing file: ", err)
