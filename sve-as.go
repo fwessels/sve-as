@@ -1559,9 +1559,8 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				return assem_z_p_z(templ, zd, pg, zn), 0, nil
 			}
 		}
-	case "fcvtzs":
+	case "fcvtzs", "fcvtzu":
 		if ok, zd, pg, zn, Td, Tn := is_z_p_z_tt(args); ok {
-			// FCVTZS <Zd>.<T>, <Pg>/M, <Zn>.<T>
 			var opc, sf string
 			switch Td + Tn {
 			case "dd":
@@ -1574,9 +1573,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				opc, sf = "11", "10"
 			}
 			if opc != "" {
-				templ := "0	1	1	0	0	1	0	1	opc	0	1	1	sf	0	1	0	1	Pg	Zn	Zd"
+				templ := "0	1	1	0	0	1	0	1	opc	0	1	1	sf	U	1	0	1	Pg	Zn	Zd"
 				templ = strings.ReplaceAll(templ, "opc", opc)
 				templ = strings.ReplaceAll(templ, "sf", sf)
+				templ = strings.ReplaceAll(templ, "U", If(mnem == "fcvtzu", "1", "0"))
 				return assem_z_p_z(templ, zd, pg, zn), 0, nil
 			}
 		}
@@ -1782,6 +1782,19 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
 			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
 			return assem_z_zi(templ, zd, zn, "imm3", imm3), 0, nil
+		} else if ok, zdn, pg, imm, T := is_z_p_zi(args); !is_zeroing(args[1]) && ok && imm >= 1 && imm <= elementSize(T) {
+			// ASR <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, #<const> — predicated immediate
+			imm3, tsz := computeShiftSpecifier(uint(imm), true, T)
+			templ := "0	0	0	0	0	1	0	0	tszh	0	0	0	0	0	0	1	0	0	Pg	tszl	imm3	Zdn"
+			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
+			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
+			templ = strings.ReplaceAll(templ, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(pg), 2)))
+			templ = strings.ReplaceAll(templ, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+			templ = strings.ReplaceAll(templ, "imm3", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(imm3), 2)))
+			templ = strings.ReplaceAll(templ, "\t", "")
+			if code, err := strconv.ParseUint(templ, 2, 32); err == nil {
+				return uint32(code), 0, nil
+			}
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	0	0	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -1911,9 +1924,8 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				}
 			}
 		}
-	case "scvtf":
+	case "scvtf", "ucvtf":
 		if ok, zd, pg, zn, Td, Tn := is_z_p_z_tt(args); ok {
-			// SCVTF <Zd>.<T>, <Pg>/M, <Zn>.<T>
 			var opc, sf string
 			switch Td + Tn {
 			case "dd":
@@ -1928,9 +1940,10 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				opc, sf = "01", "001"
 			}
 			if opc != "" {
-				templ := "0	1	1	0	0	1	0	1	opc	0	1	sf	0	1	0	1	Pg	Zn	Zd"
+				templ := "0	1	1	0	0	1	0	1	opc	0	1	sf	U	1	0	1	Pg	Zn	Zd"
 				templ = strings.ReplaceAll(templ, "opc", opc)
 				templ = strings.ReplaceAll(templ, "sf", sf)
+				templ = strings.ReplaceAll(templ, "U", If(mnem == "ucvtf", "1", "0"))
 				return assem_z_p_z(templ, zd, pg, zn), 0, nil
 			}
 		}
@@ -2894,6 +2907,21 @@ func mnemElemType(mnem string) string {
 	return ""
 }
 
+func elementSize(T string) int {
+	switch strings.ToUpper(T) {
+	case "B":
+		return 8
+	case "H":
+		return 16
+	case "S":
+		return 32
+	case "D":
+		return 64
+	default:
+		return 0
+	}
+}
+
 func getSizeFromType(T string) string {
 	switch strings.ToUpper(T) {
 	case "B":
@@ -3644,6 +3672,22 @@ func is_z_p_zz(args []string) (ok bool, zdn, pg, zm int, T string) {
 
 		if zdn == zn && zdn != -1 && zn != -1 && zm != -1 && pg != -1 && t1 == t2 && t2 == t3 {
 			return true, zdn, pg, zm, t1
+		}
+	}
+	return
+}
+
+func is_z_p_zi(args []string) (ok bool, zdn, pg, imm int, T string) {
+	if len(args) == 4 && strings.HasPrefix(args[3], "#") {
+		var t1, t2 string
+		var zn int
+		zdn, t1, _ = getZ(args[0])
+		pg = getP(strings.Split(args[1], "/")[0])
+		zn, t2, _ = getZ(args[2])
+		okImm, immVal := getImm(args[3])
+
+		if okImm && zdn == zn && zdn != -1 && pg != -1 && t1 == t2 {
+			return true, zdn, pg, immVal, t1
 		}
 	}
 	return
