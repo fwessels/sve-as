@@ -363,6 +363,9 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	0	0	1	0	1	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_zz(templ, zd, zn1, zm), 0, nil
+		} else if len(args) == 5 && args[1] == "{" && args[3] == "}" {
+			// tbl z, { z }, z — single-register brace form, same as tbl z, z, z
+			return Assemble(fmt.Sprintf("tbl %s, %s, %s", args[0], args[2], args[4]))
 		} else if ok, zd, zn, zm, T := is_z_zz(args); ok {
 			templ := "0	0	0	0	0	1	0	1	size	1	Zm	0	0	1	1	0	0	Zn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -2487,7 +2490,13 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			return assem_z_ri(templ, zd, rn, "imm5", imm), 0, nil
 		}
 	case "insr":
-		if ok, zdn, rm, T := is_z_r(args); ok {
+		if ok, zdn, vn, T := is_z_v(args); ok {
+			// INSR <Zdn>.<T>, <V><n> — insert SIMD scalar
+			templ := "0	0	0	0	0	1	0	1	size	1	1	0	1	0	0	0	0	1	1	1	0	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			return assem_z_z(templ, zdn, vn), 0, nil
+		} else if ok, zdn, rm, T := is_z_r(args); ok {
+			// INSR <Zdn>.<T>, <R><m> — insert GP register
 			templ := "0	0	0	0	0	1	0	1	size	1	0	0	1	0	0	0	0	1	1	1	0	Rm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			templ = strings.ReplaceAll(templ, "Zdn", "Zd")
