@@ -219,6 +219,48 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ = strings.ReplaceAll(templ, "Vd", "Rd")
 			return assem_r_p_z(templ, vd, pg, zn), 0, nil
 		}
+	case "andv", "orv", "eorv":
+		if ok, vd, pg, zn, T := is_v_p_z(args); ok && T != "" {
+			// ANDV/ORV/EORV <Vd>, <Pg>, <Zn>.<T>
+			var opc string
+			switch mnem {
+			case "orv":
+				opc = "0	0"
+			case "eorv":
+				opc = "0	1"
+			case "andv":
+				opc = "1	0"
+			}
+			templ := "0	0	0	0	0	1	0	0	size	0	1	1	0	opc	0	0	1	Pg	Zn	Vd"
+			templ = strings.ReplaceAll(templ, "opc", opc)
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
+			templ = strings.ReplaceAll(templ, "Vd", "Rd")
+			return assem_r_p_z(templ, vd, pg, zn), 0, nil
+		}
+	case "sunpklo", "sunpkhi", "uunpklo", "uunpkhi":
+		// {S,U}UNPK{LO,HI} <Zd>.<T>, <Zn>.<Tb> — Td must be next wider than Tn
+		if ok, zd, zn, Td, Tn := is_z_z_tt(args); ok && elementSize(Td) == 2*elementSize(Tn) {
+			U := If(strings.HasPrefix(mnem, "u"), "1", "0")
+			H := If(strings.HasSuffix(mnem, "hi"), "1", "0")
+			templ := "0	0	0	0	0	1	0	1	size	1	1	0	0	U	H	0	0	1	1	1	0	Zn	Zd"
+			templ = strings.ReplaceAll(templ, "size", getSizeFromType(Td))
+			templ = strings.ReplaceAll(templ, "U", U)
+			templ = strings.ReplaceAll(templ, "H", H)
+			return assem_z_z(templ, zd, zn), 0, nil
+		}
+	case "ctermeq", "ctermne":
+		// CTERMEQ/CTERMNE <Xn>, <Xm>
+		if ok, rn, rm, sf := is_rr(args); ok && sf == 1 {
+			ne := If(mnem == "ctermne", "1", "0")
+			templ := "0	0	1	0	0	1	0	1	1	1	1	Rm	0	0	1	0	0	0	Rn	ne	0	0	0	0"
+			templ = strings.ReplaceAll(templ, "ne", ne)
+			templ = strings.ReplaceAll(templ, "Rm", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rm), 2)))
+			templ = strings.ReplaceAll(templ, "Rn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(rn), 2)))
+			templ = strings.ReplaceAll(templ, "\t", "")
+			if code, err := strconv.ParseUint(templ, 2, 32); err == nil {
+				return uint32(code), 0, nil
+			}
+		}
 	case "tst":
 		if ok, rn, rm, sf := is_rr(args); ok {
 			// equivalent to "ands xzr, <xn>, <xm>{, <shift> #<amount>}"
@@ -366,6 +408,24 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "0	0	0	0	0	1	0	1	size	1	0	0	0	0	0	0	0	1	1	1	0	Rn	Zd"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 			return assem_z_r(templ, zd, rn), 0, nil
+		} else if ok, zd, vn, T := is_z_v(args); ok {
+			// DUP <Zd>.<T>, <V><n> — broadcast SIMD scalar (index 0)
+			var tsz string
+			switch strings.ToUpper(T) {
+			case "D":
+				tsz = "0	1	0	0	0"
+			case "S":
+				tsz = "0	0	1	0	0"
+			case "H":
+				tsz = "0	0	0	1	0"
+			case "B":
+				tsz = "0	0	0	0	1"
+			}
+			if tsz != "" {
+				templ := "0	0	0	0	0	1	0	1	0	0	1	tsz	0	0	1	0	0	0	Zn	Zd"
+				templ = strings.ReplaceAll(templ, "tsz", tsz)
+				return assem_z_z(templ, zd, vn), 0, nil
+			}
 		}
 	case "mov", "movz", "movk", "movn":
 		if mnem == "mov" || mnem == "movz" || mnem == "movk" || mnem == "movn" {
@@ -444,6 +504,24 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 				templ := "0	0	0	0	0	1	0	0	0	1	1	Zm	0	0	1	1	0	0	Zn	Zd"
 				templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
 				return assem_z_zz(templ, zd, zn, zn), 0, nil
+			} else if ok, zd, vn, T := is_z_v(args); ok {
+				// MOV <Zd>.<T>, <V><n> — broadcast SIMD scalar (alias of DUP)
+				var tsz string
+				switch strings.ToUpper(T) {
+				case "D":
+					tsz = "0	1	0	0	0"
+				case "S":
+					tsz = "0	0	1	0	0"
+				case "H":
+					tsz = "0	0	0	1	0"
+				case "B":
+					tsz = "0	0	0	0	1"
+				}
+				if tsz != "" {
+					templ := "0	0	0	0	0	1	0	1	0	0	1	tsz	0	0	1	0	0	0	Zn	Zd"
+					templ = strings.ReplaceAll(templ, "tsz", tsz)
+					return assem_z_z(templ, zd, vn), 0, nil
+				}
 			} else if ok, zd, pg, zn, T := is_z_p_z(args); ok {
 				// MOV <Zd>.<T>, <Pv>/M, <Zn>.<T>
 				//   is equivalent to
@@ -1350,6 +1428,19 @@ func Assemble(ins string) (opcode, opcode2 uint32, err error) {
 			templ := "sf	0	0	1	1	0	1	0	1	1	0	Rm	0	0	1	0	0	0	Rn	Rd"
 			templ = strings.ReplaceAll(templ, "shift", fmt.Sprintf("%0*s", 2, strconv.FormatUint(uint64(shift), 2)))
 			return assem_r_rr(templ, rd, rn, rm, sf, "", 0), 0, nil
+		} else if ok, zdn, pg, imm, T := is_z_p_zi(args); !is_zeroing(args[1]) && ok && imm >= 0 && imm < elementSize(T) {
+			// LSL <Zdn>.<T>, <Pg>/M, <Zdn>.<T>, #<const> — predicated immediate
+			imm3, tsz := computeShiftSpecifier(uint(imm), false, T)
+			templ := "0	0	0	0	0	1	0	0	tszh	0	0	0	0	1	1	1	0	0	Pg	tszl	imm3	Zdn"
+			templ = strings.ReplaceAll(templ, "tszh", tsz[:2])
+			templ = strings.ReplaceAll(templ, "tszl", tsz[2:])
+			templ = strings.ReplaceAll(templ, "Pg", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(pg), 2)))
+			templ = strings.ReplaceAll(templ, "Zdn", fmt.Sprintf("%0*s", 5, strconv.FormatUint(uint64(zdn), 2)))
+			templ = strings.ReplaceAll(templ, "imm3", fmt.Sprintf("%0*s", 3, strconv.FormatUint(uint64(imm3), 2)))
+			templ = strings.ReplaceAll(templ, "\t", "")
+			if code, err := strconv.ParseUint(templ, 2, 32); err == nil {
+				return uint32(code), 0, nil
+			}
 		} else if ok, zdn, pg, zm, T := is_z_p_zz(args); !is_zeroing(args[1]) && ok {
 			templ := "0	0	0	0	0	1	0	0	size	0	1	0	0	1	1	1	0	0	Pg	Zm	Zdn"
 			templ = strings.ReplaceAll(templ, "size", getSizeFromType(T))
@@ -3481,6 +3572,17 @@ func is_z_z(args []string) (ok bool, zd, zn int, T string) {
 	return
 }
 
+func is_z_z_tt(args []string) (ok bool, zd, zn int, Td, Tn string) {
+	if len(args) == 2 {
+		zd, Td, _ = getZ(args[0])
+		zn, Tn, _ = getZ(args[1])
+		if zd != -1 && zn != -1 && Td != "" && Tn != "" {
+			return true, zd, zn, Td, Tn
+		}
+	}
+	return
+}
+
 func is_z_zz(args []string) (ok bool, zd, zn, zm int, T string) {
 	if len(args) == 3 {
 		var t1, t2, t3 string
@@ -3860,6 +3962,17 @@ func is_z_zindexed(args []string) (ok bool, zd, zn, index int, T string) {
 		zn, t2, index = getZ(args[1])
 		if zd != -1 && zn != -1 && t1 == t2 {
 			return true, zd, zn, index, t1
+		}
+	}
+	return
+}
+
+func is_z_v(args []string) (ok bool, zd, vn int, T string) {
+	if len(args) == 2 && !strings.Contains(args[1], ".") && !strings.HasPrefix(args[1], "#") {
+		zd, T, _ = getZ(args[0])
+		vn = getV(args[1])
+		if zd != -1 && vn != -1 && len(args[1]) > 0 && strings.EqualFold(T, string(args[1][0])) {
+			return true, zd, vn, T
 		}
 	}
 	return
