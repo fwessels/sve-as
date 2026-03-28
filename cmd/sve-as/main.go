@@ -9,11 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 
 	sve_as "github.com/fwessels/sve-as"
@@ -53,6 +53,9 @@ func assemble(buf []byte, hasDWordsMap *map[string]bool) (out string, containsDW
 				opcode, opcode2, err := sve_as.Assemble(ins)
 				if err != nil {
 					fmt.Println(err)
+					if msg := gnuAsmError(ins); msg != "" {
+						fmt.Println(msg)
+					}
 					os.Exit(1)
 				}
 
@@ -197,12 +200,13 @@ func NewPreprocessor(fname string) (pp *preprocessor.Preprocessor, err error) {
 	return
 }
 
-func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
+func asm2s(fname string, buf []byte, toPlan9s bool, keepIncludeComments bool) (out string, err error) {
 
 	var pp *preprocessor.Preprocessor
 	if pp, err = NewPreprocessor(fname); err != nil {
 		return "", err
 	}
+	pp.KeepIncludeComments = keepIncludeComments
 
 	preprocessed := bytes.Buffer{}
 	if err := pp.Process(fname, bytes.NewReader(buf), &preprocessed); err != nil {
@@ -231,8 +235,10 @@ func asm2s(fname string, buf []byte, toPlan9s bool) (out string, err error) {
 		} else {
 			opcode, opcode2, err := sve_as.Assemble(line)
 			if err != nil {
-				fmt.Printf("'%s'\n", line)
 				fmt.Println(err)
+				if msg := gnuAsmError(line); msg != "" {
+					fmt.Println(msg)
+				}
 				os.Exit(2)
 			}
 			inlineComment = strings.TrimSpace(inlineComment)
@@ -425,6 +431,7 @@ func main() {
 	plan9 := flag.Bool("plan9", false, "enable plan9 disassembly for asm mode")
 	outputPath := flag.String("output-path", "", "directory for output .s files (asm mode only)")
 	force := flag.Bool("f", false, "force processing even if output is newer than input (asm mode)")
+	keepIncludeComments := flag.Bool("keep-include-comments", false, "keep comment-only lines from included files (asm mode)")
 	flag.Parse()
 
 	args := flag.Args()
@@ -478,7 +485,7 @@ func main() {
 					outFname = filepath.Join(*outputPath, outName)
 				}
 				fmt.Printf("Processing %s → %s\n", fname, outFname)
-				if processed, err = asm2s(fname, buf, *plan9); err != nil {
+				if processed, err = asm2s(fname, buf, *plan9, *keepIncludeComments); err != nil {
 					errs <- fmt.Errorf("%s: %w", fname, err)
 					return
 				}
@@ -509,4 +516,45 @@ func main() {
 		exitCode = 1
 	}
 	os.Exit(exitCode)
+}
+
+// gnuAsmError tries to assemble the instruction using the system GNU assembler
+// (aarch64-linux-gnu-as) and returns a cleaned-up error message.
+// If the assembler is not available or the instruction assembles successfully,
+// it returns an empty string.
+func gnuAsmError(ins string) string {
+	asPath, err := exec.LookPath("aarch64-linux-gnu-as")
+	if err != nil {
+		return ""
+	}
+	src := fmt.Sprintf(".text\n%s\n", strings.TrimSpace(ins))
+	cmd := exec.Command(asPath, "-march=armv8-a+sve", "-o", os.DevNull)
+	cmd.Stdin = strings.NewReader(src)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if msg == "" {
+			return ""
+		}
+		// Extract just the "Error: ..." portions, stripping
+		// "{standard input}: Assembler messages:" and line prefixes.
+		var errors []string
+		for _, line := range strings.Split(msg, "\n") {
+			line = strings.TrimSpace(line)
+			if idx := strings.Index(line, "Error: "); idx >= 0 {
+				// Extract from "Error: " onward, then strip the
+				// trailing " -- `instruction'" suffix
+				errMsg := line[idx+len("Error: "):]
+				if dashIdx := strings.Index(errMsg, " -- `"); dashIdx >= 0 {
+					errMsg = errMsg[:dashIdx]
+				}
+				errors = append(errors, errMsg)
+			}
+		}
+		if len(errors) > 0 {
+			return "gnu as: " + strings.Join(errors, "; ")
+		}
+		return ""
+	}
+	return ""
 }

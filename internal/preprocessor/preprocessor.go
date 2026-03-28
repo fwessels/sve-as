@@ -15,9 +15,10 @@ import (
 // ---------------- Preprocessor ----------------
 
 type Preprocessor struct {
-	IncludeDirs       []string
-	KeepLineComments  bool
-	EntryFile         string
+	IncludeDirs          []string
+	KeepLineComments     bool
+	KeepIncludeComments  bool
+	EntryFile            string
 	obj               map[string]string
 	fn                map[string]FnMacro
 	includeStackGuard map[string]bool
@@ -50,7 +51,10 @@ func (p *Preprocessor) Process(filename string, r io.Reader, w io.Writer) error 
 	if err == nil {
 		filename = abs
 	}
-	stripTextflagComments := filepath.Base(filename) == "textflag.h"
+	if p.EntryFile == "" {
+		p.EntryFile = filename
+	}
+	stripIncludedComments := !p.KeepIncludeComments && filename != p.EntryFile
 
 	if p.includeStackGuard[filename] {
 		// Prevent include cycles from exploding; you can change this behavior if you want
@@ -141,7 +145,7 @@ func (p *Preprocessor) Process(filename string, r io.Reader, w io.Writer) error 
 			continue
 		}
 
-		if stripTextflagComments {
+		if stripIncludedComments {
 			trim := strings.TrimSpace(line)
 			if strings.HasPrefix(trim, "//") {
 				continue
@@ -1215,7 +1219,21 @@ func parseDefineDirective(arg string) (name string, params []string, body string
 
 	// object-like: NAME body...
 	body = trimLeftSpaceTab(arg[len(name):])
+	body = stripTrailingComment(body)
 	return name, nil, body, true
+}
+
+// stripTrailingComment removes a trailing C-style // comment from a #define body.
+// This prevents comments in macro definitions from bleeding into expansion sites.
+// For example: #define VIRT_PCREG R19 // virtual program counter
+// Without stripping, expanding VIRT_PCREG would produce "R19 // virtual program counter"
+// which breaks when used inside instruction operands.
+func stripTrailingComment(s string) string {
+	// Don't strip inside string literals (rare in asm macros but be safe)
+	if i := strings.Index(s, "//"); i >= 0 {
+		return strings.TrimRight(s[:i], " \t")
+	}
+	return s
 }
 
 func trimLeftSpaceTab(s string) string {

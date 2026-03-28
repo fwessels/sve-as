@@ -17,7 +17,7 @@ func TestAsm2s(t *testing.T) {
 		return strings.Join(lines, "\n")
 	}
 	for _, toPlan9s := range []bool{false, true} {
-		got, err := asm2s("test-asm-2-s", []byte(asm), toPlan9s)
+		got, err := asm2s("test-asm-2-s", []byte(asm), toPlan9s, false)
 		if err != nil {
 			t.Errorf("%v", err)
 		} else if diff := cmp.Diff(normalize(got), sve_as.If(toPlan9s, normalize(plan9s), normalize(opcodes))); diff != "" {
